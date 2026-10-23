@@ -1,0 +1,107 @@
+{
+  "title": "Buffalo LinkStation",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to a Buffalo LinkStation",
+        "description": "Enter the local address and NAS administrator credentials. Credentials are sent only to the local NAS.",
+        "data": {
+          "host": "Hostname or IP address",
+          "username": "Username",
+          "password": "Password",
+          "update_interval": "Polling interval",
+          "timeout": "Connection timeout"
+        },
+        "data_description": {
+          "update_interval": "Seconds between updates (15–3600)",
+          "timeout": "Request timeout in seconds (3–60)"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reauthenticate Buffalo LinkStation",
+        "description": "Enter valid credentials for {name}.",
+        "data": {
+          "username": "Username",
+          "password": "Password"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure Buffalo LinkStation",
+        "description": "Update the local address, credentials, and connection settings.",
+        "data": {
+          "host": "Hostname or IP address",
+          "username": "Username",
+          "password": "Password",
+          "update_interval": "Polling interval",
+          "timeout": "Connection timeout"
+        },
+        "data_description": {
+          "update_interval": "Seconds between updates (15–3600)",
+          "timeout": "Request timeout in seconds (3–60)"
+        }
+      }
+    },
+    "error": {
+      "already_configured": "This LinkStation is already configured",
+      "cannot_connect": "Unable to connect to the LinkStation",
+      "invalid_auth": "Invalid username or password",
+      "invalid_host": "Enter a hostname or IP address without a URL path",
+      "timeout": "The LinkStation did not respond in time",
+      "wrong_device": "The address returned a different LinkStation"
+    },
+    "abort": {
+      "already_configured": "This LinkStation is already configured",
+      "reauth_successful": "Reauthentication was successful",
+      "reconfigure_successful": "Reconfiguration was successful"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Buffalo LinkStation options",
+        "description": "Power controls are potentially destructive. Enable an unverified control only after confirming model compatibility outside Home Assistant.",
+        "data": {
+          "update_interval": "Polling interval",
+          "timeout": "Connection timeout",
+          "enable_shutdown": "Enable shutdown button",
+          "enable_reboot": "Enable reboot button"
+        },
+        "data_description": {
+          "update_interval": "Seconds between updates (15–3600)",
+          "timeout": "Request timeout in seconds (3–60)",
+          "enable_shutdown": "LS220D 1.86 and LS420D 1.88 are hardware-verified and always enabled; other model/firmware combinations require an explicit override",
+          "enable_reboot": "Enable only when reboot is supported by the device"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "firmware_version": {"name": "Firmware version"},
+      "cpu_status": {"name": "CPU status"},
+      "system_errors": {"name": "System errors"},
+      "system_messages": {"name": "System messages"},
+      "storage_utilization": {"name": "Storage utilization"},
+      "storage_used": {"name": "Storage used"},
+      "storage_total": {"name": "Storage total"},
+      "disk_status": {"name": "Disk status"},
+      "raid_status": {"name": "RAID status"}
+    },
+    "binary_sensor": {
+      "reachable": {"name": "Reachable"},
+      "system_error": {"name": "System error"},
+      "raid_problem": {"name": "RAID problem"}
+    },
+    "button": {
+      "shutdown": {"name": "Shut down"},
+      "reboot": {"name": "Restart"}
+    }
+  },
+  "exceptions": {
+    "cannot_connect": {"message": "Unable to connect to the LinkStation."},
+    "invalid_auth": {"message": "The LinkStation rejected authentication."},
+    "operation_failed": {"message": "The LinkStation power operation failed."},
+    "operation_not_available": {"message": "This power operation is not enabled for the LinkStation."},
+    "update_failed": {"message": "Unable to update LinkStation data."}
+  }
+}

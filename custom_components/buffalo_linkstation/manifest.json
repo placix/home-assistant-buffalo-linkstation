@@ -1,0 +1,12 @@
+{
+  "domain": "buffalo_linkstation",
+  "name": "Buffalo LinkStation",
+  "codeowners": ["@placix"],
+  "config_flow": true,
+  "documentation": "https://github.com/placix/home-assistant-buffalo-linkstation",
+  "integration_type": "hub",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/placix/home-assistant-buffalo-linkstation/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}

@@ -1,0 +1,8 @@
+aiohttp>=3.11,<4
+pytest-cov
+pytest-asyncio
+ruff
+pytest
+homeassistant==2026.9.4; sys_platform != "win32"
+home-assistant-frontend==20260826.7; sys_platform != "win32"
+pytest-homeassistant-custom-component; sys_platform != "win32"

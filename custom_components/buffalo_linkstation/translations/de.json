@@ -1,0 +1,42 @@
+{
+  "title": "Buffalo LinkStation",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Mit einer Buffalo LinkStation verbinden",
+        "description": "Gib die lokale Adresse und die Administrator-Zugangsdaten des NAS ein. Die Zugangsdaten werden nur an das lokale NAS gesendet.",
+        "data": {"host": "Hostname oder IP-Adresse", "username": "Benutzername", "password": "Passwort", "update_interval": "Abfrageintervall", "timeout": "Zeitüberschreitung der Verbindung"},
+        "data_description": {"update_interval": "Sekunden zwischen Aktualisierungen (15–3600)", "timeout": "Zeitüberschreitung für Anfragen in Sekunden (3–60)"}
+      },
+      "reauth_confirm": {
+        "title": "Buffalo LinkStation erneut authentifizieren",
+        "description": "Gib gültige Zugangsdaten für {name} ein.",
+        "data": {"username": "Benutzername", "password": "Passwort"}
+      },
+      "reconfigure": {
+        "title": "Buffalo LinkStation neu konfigurieren",
+        "description": "Ändere die lokale Adresse, Zugangsdaten und Verbindungseinstellungen.",
+        "data": {"host": "Hostname oder IP-Adresse", "username": "Benutzername", "password": "Passwort", "update_interval": "Abfrageintervall", "timeout": "Zeitüberschreitung der Verbindung"},
+        "data_description": {"update_interval": "Sekunden zwischen Aktualisierungen (15–3600)", "timeout": "Zeitüberschreitung für Anfragen in Sekunden (3–60)"}
+      }
+    },
+    "error": {"already_configured": "Diese LinkStation ist bereits konfiguriert", "cannot_connect": "Verbindung zur LinkStation fehlgeschlagen", "invalid_auth": "Ungültiger Benutzername oder ungültiges Passwort", "invalid_host": "Gib einen Hostnamen oder eine IP-Adresse ohne URL-Pfad ein", "timeout": "Die LinkStation hat nicht rechtzeitig geantwortet", "wrong_device": "Unter dieser Adresse wurde eine andere LinkStation gefunden"},
+    "abort": {"already_configured": "Diese LinkStation ist bereits konfiguriert", "reauth_successful": "Die erneute Authentifizierung war erfolgreich", "reconfigure_successful": "Die Neukonfiguration war erfolgreich"}
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Optionen für Buffalo LinkStation",
+        "description": "Die Ein/Aus-Steuerung kann Datenverlust verursachen. Aktiviere eine nicht verifizierte Funktion erst, nachdem du die Modellkompatibilität außerhalb von Home Assistant bestätigt hast.",
+        "data": {"update_interval": "Abfrageintervall", "timeout": "Zeitüberschreitung der Verbindung", "enable_shutdown": "Schaltfläche zum Herunterfahren aktivieren", "enable_reboot": "Schaltfläche zum Neustarten aktivieren"},
+        "data_description": {"update_interval": "Sekunden zwischen Aktualisierungen (15–3600)", "timeout": "Zeitüberschreitung für Anfragen in Sekunden (3–60)", "enable_shutdown": "LS220D 1.86 und LS420D 1.88 sind auf Hardware verifiziert und immer aktiviert; andere Modell-/Firmware-Kombinationen erfordern eine ausdrückliche Freigabe", "enable_reboot": "Nur aktivieren, wenn das Gerät den Neustart unterstützt"}
+      }
+    }
+  },
+  "entity": {
+    "sensor": {"firmware_version": {"name": "Firmwareversion"}, "cpu_status": {"name": "CPU-Status"}, "system_errors": {"name": "Systemfehler"}, "system_messages": {"name": "Systemmeldungen"}, "storage_utilization": {"name": "Speicherauslastung"}, "storage_used": {"name": "Belegter Speicher"}, "storage_total": {"name": "Gesamtspeicher"}, "disk_status": {"name": "Festplattenstatus"}, "raid_status": {"name": "RAID-Status"}},
+    "binary_sensor": {"reachable": {"name": "Erreichbar"}, "system_error": {"name": "Systemfehler"}, "raid_problem": {"name": "RAID-Problem"}},
+    "button": {"shutdown": {"name": "Herunterfahren"}, "reboot": {"name": "Neu starten"}}
+  },
+  "exceptions": {"cannot_connect": {"message": "Verbindung zur LinkStation fehlgeschlagen."}, "invalid_auth": {"message": "Die LinkStation hat die Authentifizierung abgelehnt."}, "operation_failed": {"message": "Der Ein/Aus-Befehl für die LinkStation ist fehlgeschlagen."}, "operation_not_available": {"message": "Dieser Ein/Aus-Befehl ist für die LinkStation nicht aktiviert."}, "update_failed": {"message": "Die LinkStation-Daten konnten nicht aktualisiert werden."}}
+}
