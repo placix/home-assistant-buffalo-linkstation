@@ -1,9 +1,11 @@
 """Tests for Buffalo LinkStation config flows."""
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
+import pytest
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
+from homeassistant.data_entry_flow import FlowResultType
 
 from custom_components.buffalo_linkstation.api import (
     BuffaloAuthenticationError,
@@ -35,6 +37,16 @@ VALID = ValidationResult(
 )
 
 
+@pytest.fixture(autouse=True)
+def prevent_entry_setup_network_calls():
+    """Keep config-flow tests isolated from network-backed entry setup."""
+    with patch(
+        "custom_components.buffalo_linkstation.async_setup_entry",
+        new=AsyncMock(return_value=True),
+    ):
+        yield
+
+
 async def test_user_flow_success(hass):
     with patch(
         "custom_components.buffalo_linkstation.config_flow._async_validate",
@@ -46,7 +58,7 @@ async def test_user_flow_success(hass):
             data=INPUT,
         )
 
-    assert result["type"] is config_entries.ConfigFlowResultType.CREATE_ENTRY
+    assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["title"] == "office-nas"
     assert result["data"][CONF_DEVICE_ID] == "serial:abc123"
     assert result["result"].unique_id == "serial:abc123"
@@ -62,7 +74,7 @@ async def test_invalid_credentials(hass):
             context={"source": config_entries.SOURCE_USER},
             data=INPUT,
         )
-    assert result["type"] is config_entries.ConfigFlowResultType.FORM
+    assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "invalid_auth"}
 
 
@@ -81,8 +93,8 @@ async def test_duplicate_device_is_rejected(hass):
             context={"source": config_entries.SOURCE_USER},
             data={**INPUT, CONF_HOST: "192.0.2.5"},
         )
-    assert first["type"] is config_entries.ConfigFlowResultType.CREATE_ENTRY
-    assert second["type"] is config_entries.ConfigFlowResultType.ABORT
+    assert first["type"] is FlowResultType.CREATE_ENTRY
+    assert second["type"] is FlowResultType.ABORT
     assert second["reason"] == "already_configured"
 
 
