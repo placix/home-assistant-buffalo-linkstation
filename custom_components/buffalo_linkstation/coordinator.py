@@ -14,15 +14,13 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .api import (
     BuffaloAuthenticationError,
-    BuffaloConnectionError,
     BuffaloIdentity,
-    BuffaloInvalidResponseError,
     BuffaloJsonRpcError,
-    BuffaloLinkStationApi,
-    BuffaloTimeoutError,
+    BuffaloLinkStationError,
     extract_identity,
 )
 from .const import DOMAIN
+from .models import BuffaloLinkStationClient
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -44,7 +42,7 @@ class BuffaloLinkStationCoordinator(DataUpdateCoordinator[BuffaloLinkStationData
         self,
         hass: HomeAssistant,
         entry: ConfigEntry,
-        api: BuffaloLinkStationApi,
+        api: BuffaloLinkStationClient,
         update_interval: timedelta,
     ) -> None:
         """Initialize the coordinator."""
@@ -61,17 +59,23 @@ class BuffaloLinkStationCoordinator(DataUpdateCoordinator[BuffaloLinkStationData
         self._identity: BuffaloIdentity | None = None
 
     async def _async_update_data(self) -> BuffaloLinkStationData:
+        try:
+            await self.api.prepare_update()
+        except BuffaloAuthenticationError as err:
+            raise ConfigEntryAuthFailed(
+                translation_domain=DOMAIN,
+                translation_key="invalid_auth",
+            ) from err
+        except BuffaloLinkStationError as err:
+            raise UpdateFailed(
+                translation_domain=DOMAIN,
+                translation_key="update_failed",
+            ) from err
         features = self._features or {}
         if self._features is None:
             try:
                 features = await self.api.get_features()
-            except (
-                BuffaloAuthenticationError,
-                BuffaloConnectionError,
-                BuffaloTimeoutError,
-                BuffaloInvalidResponseError,
-                BuffaloJsonRpcError,
-            ) as err:
+            except BuffaloLinkStationError as err:
                 # Feature flags are optional metadata. Preserve portal/device
                 # monitoring and retry this independent query next update.
                 if isinstance(err, BuffaloJsonRpcError):
@@ -95,12 +99,7 @@ class BuffaloLinkStationCoordinator(DataUpdateCoordinator[BuffaloLinkStationData
                 translation_domain=DOMAIN,
                 translation_key="invalid_auth",
             ) from err
-        except (
-            BuffaloConnectionError,
-            BuffaloTimeoutError,
-            BuffaloInvalidResponseError,
-            BuffaloJsonRpcError,
-        ) as err:
+        except BuffaloLinkStationError as err:
             raise UpdateFailed(
                 translation_domain=DOMAIN,
                 translation_key="update_failed",

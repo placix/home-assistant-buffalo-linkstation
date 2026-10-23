@@ -1,0 +1,168 @@
+{
+  "authentication": {
+    "mode": "manual_temporary_session_cookie",
+    "validated": true
+  },
+  "capture_format": 1,
+  "complete": true,
+  "firmware": "1.75",
+  "methods": {
+    "getArrayList": {
+      "http_status": 200,
+      "response": {
+        "data": [
+          {
+            "arrayDiskNum": 2,
+            "arrayFormat": ["xfs"],
+            "arrayMode": "raid1",
+            "arrayName": "array1",
+            "arrayStatus": "ok",
+            "diskError": null,
+            "diskNormal": ["disk1", "disk2"],
+            "diskSpare": [],
+            "diskTotal": ["disk1", "disk2"],
+            "sizeAllRaw": ["1,937,364,900"],
+            "sizeUsedRate": ["70.69"],
+            "sizeUsedRaw": ["1,369,523,620"]
+          }
+        ],
+        "errors": null,
+        "success": true
+      }
+    },
+    "getArrayMaintenance": {
+      "http_status": 200,
+      "response": {
+        "data": [
+          {
+            "raidscan": "on",
+            "raidscan_status": "",
+            "schedule_type": "week",
+            "schedule_week": "Sun"
+          }
+        ],
+        "errors": null,
+        "success": true
+      }
+    },
+    "getArrayMiscInfo": {
+      "http_status": 200,
+      "response": {
+        "data": [
+          {
+            "raid_sync_speed": "high",
+            "raidfail_shutdown": "on"
+          }
+        ],
+        "errors": null,
+        "success": true
+      }
+    },
+    "getDiskAllList": {
+      "http_status": 200,
+      "response": {
+        "data": [
+          {
+            "amountUsed": "1,369,523,620 KB",
+            "capacity": "1,937,364,900 KB",
+            "disk": "array1",
+            "fileFormat": "XFS",
+            "percentUsed": "70.69 %"
+          },
+          {
+            "amountUsed": "-",
+            "capacity": "-",
+            "disk": "disk1",
+            "percentUsed": "-",
+            "status": "array1"
+          },
+          {
+            "amountUsed": "-",
+            "capacity": "-",
+            "disk": "disk2",
+            "percentUsed": "-",
+            "status": "array1"
+          },
+          {
+            "amountUsed": null,
+            "capacity": null,
+            "disk": "usbdisk1",
+            "percentUsed": null,
+            "status": "disconnect"
+          }
+        ],
+        "errors": [],
+        "success": true
+      }
+    },
+    "getFeatures": {
+      "http_status": 200,
+      "response": {
+        "data": [
+          {"id": "SERIES_NAME", "value": "LinkStation"},
+          {"id": "PRODUCT_NAME", "value": "LS-WVL(KOUGYOKU)"},
+          {"id": "PRODUCT_CAPACITY", "value": "4.0T"},
+          {"id": "SUPPORT_RAID", "value": "1"},
+          {"id": "SUPPORT_RAID0", "value": "1"},
+          {"id": "SUPPORT_RAID1", "value": "1"},
+          {"id": "SUPPORT_UPS_USB", "value": "1"},
+          {"id": "SUPPORT_UPS_SERIAL", "value": "0"},
+          {"id": "SUPPORT_SHUTDOWN_FROMWEB", "value": "0"},
+          {"id": "SUPPORT_REBOOT_FROMWEB", "value": "1"}
+        ],
+        "errors": [],
+        "success": true
+      }
+    },
+    "getOperationStatus": {
+      "http_status": 200,
+      "response": {
+        "data": [
+          {
+            "elapsedTime": null,
+            "operation": null,
+            "progress": null,
+            "task": null
+          }
+        ],
+        "errors": [null],
+        "success": true
+      }
+    },
+    "getUPSSettings": {
+      "http_status": 200,
+      "response": {
+        "data": [
+          {
+            "behavior": "off",
+            "connectType": "",
+            "net_ipAddr": "<redacted>",
+            "recovery": "off",
+            "shutdown": "off",
+            "syncUps": "off",
+            "time": null,
+            "upsStatus": "ups_status4",
+            "wait": null
+          }
+        ],
+        "errors": null,
+        "success": true
+      }
+    },
+    "validateSession": {
+      "http_status": 200,
+      "response": {
+        "data": [
+          {
+            "lang": "de",
+            "update": false
+          }
+        ],
+        "errors": [],
+        "success": true
+      }
+    }
+  },
+  "model": "LS-WVL",
+  "source": "hardware_read_only_legacy_cgi"
+}

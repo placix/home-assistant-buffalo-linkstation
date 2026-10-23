@@ -16,8 +16,11 @@ class LinkStationData(Protocol):
 
 _STATUS_PRIORITY = (
     "broken",
+    "error",
+    "failed",
     "rebuild",
     "degrade",
+    "degraded",
     "reshape",
     "resync",
     "repair",
@@ -27,6 +30,7 @@ _STATUS_PRIORITY = (
     "disconnected",
     "unformatted",
     "fine",
+    "ok",
 )
 
 
@@ -98,8 +102,21 @@ def system_messages(data: LinkStationData) -> str | None:
     return _messages(data, "informations")
 
 
-def storage_totals(data: LinkStationData) -> tuple[float, float] | None:
-    """Return valid raw used and total portal storage values in KiB."""
+def storage_totals(data: LinkStationData) -> tuple[float | int, float | int] | None:
+    """Return valid used and total values in their transport-specific unit."""
+    storage = data.system_info.get("storage")
+    if isinstance(storage, Mapping):
+        used = storage.get("used")
+        total = storage.get("total")
+        if (
+            isinstance(used, int | float)
+            and not isinstance(used, bool)
+            and isinstance(total, int | float)
+            and not isinstance(total, bool)
+            and used >= 0
+            and total >= 0
+        ):
+            return used, total
     disks = data.system_info.get("disks")
     if not isinstance(disks, list):
         return None
@@ -122,19 +139,46 @@ def storage_totals(data: LinkStationData) -> tuple[float, float] | None:
 
 
 def used_storage(data: LinkStationData) -> float | None:
-    """Convert raw KiB used storage to GiB."""
+    """Return used storage in the unit reported by `storage_display_unit`."""
     totals = storage_totals(data)
+    if storage_source_unit(data) == "vendor_reported_kb":
+        return totals[0] if totals else None
     return round(totals[0] / 1024 / 1024, 1) if totals else None
 
 
 def total_storage(data: LinkStationData) -> float | None:
-    """Convert raw KiB total storage to GiB."""
+    """Return total storage in the unit reported by `storage_display_unit`."""
     totals = storage_totals(data)
+    if storage_source_unit(data) == "vendor_reported_kb":
+        return totals[1] if totals else None
     return round(totals[1] / 1024 / 1024, 1) if totals else None
+
+
+def storage_source_unit(data: LinkStationData) -> str:
+    """Return the normalized source-unit identifier."""
+    storage = data.system_info.get("storage")
+    if isinstance(storage, Mapping) and storage.get("unit") == "vendor_reported_kb":
+        return "vendor_reported_kb"
+    return "kib"
+
+
+def storage_display_unit(data: LinkStationData) -> str:
+    """Return a display unit without guessing the legacy byte basis."""
+    if storage_source_unit(data) == "vendor_reported_kb":
+        return "KB (reported)"
+    return "GiB"
 
 
 def utilization(data: LinkStationData) -> float | None:
     """Calculate utilization from the same raw portal totals."""
+    storage = data.system_info.get("storage")
+    if isinstance(storage, Mapping) and storage.get("utilization") not in (None, ""):
+        try:
+            value = float(storage["utilization"])
+        except (TypeError, ValueError):
+            pass
+        else:
+            return round(value, 1) if value >= 0 else None
     totals = storage_totals(data)
     if totals is None or totals[1] <= 0:
         return None
@@ -164,7 +208,10 @@ def _device_status(
         elif value not in (None, ""):
             statuses.append(str(value))
     normalized = {status.casefold() for status in statuses}
-    return next((status for status in _STATUS_PRIORITY if status in normalized), None)
+    prioritized = next(
+        (status for status in _STATUS_PRIORITY if status in normalized), None
+    )
+    return prioritized or (statuses[0] if statuses else None)
 
 
 def disk_status(data: LinkStationData) -> str | None:
@@ -175,6 +222,44 @@ def disk_status(data: LinkStationData) -> str | None:
 def raid_status(data: LinkStationData) -> str | None:
     """Return the highest-priority array status."""
     return _device_status(data, "array")
+
+
+def raid_mode(data: LinkStationData) -> str | None:
+    """Return the configured RAID mode when supplied by the transport."""
+    modes = {
+        str(device["raid_level"])
+        for device in data.devices
+        if device.get("device_type") == "array"
+        and device.get("raid_level") not in (None, "")
+    }
+    return ", ".join(sorted(modes)) or None
+
+
+def disk_details(data: LinkStationData) -> list[dict[str, Any]]:
+    """Return non-sensitive normalized internal-disk membership details."""
+    return [
+        {
+            key: device.get(key)
+            for key in ("name", "status", "array", "member_state")
+            if device.get(key) not in (None, "")
+        }
+        for device in data.devices
+        if device.get("device_type") == "disk"
+        and str(device.get("interface", "")).casefold() != "usb"
+    ]
+
+
+def raid_details(data: LinkStationData) -> list[dict[str, Any]]:
+    """Return non-sensitive normalized array configuration details."""
+    return [
+        {
+            key: device.get(key)
+            for key in ("name", "status", "raid_level", "members")
+            if device.get(key) not in (None, "", ())
+        }
+        for device in data.devices
+        if device.get("device_type") == "array"
+    ]
 
 
 def system_problem(data: LinkStationData) -> bool | None:
@@ -188,7 +273,16 @@ def raid_problem(data: LinkStationData) -> bool | None:
     arrays = [device for device in data.devices if device.get("device_type") == "array"]
     if not arrays:
         return None
-    problem_states = {"broken", "degrade", "removed", "disconnected", "unformatted"}
+    problem_states = {
+        "broken",
+        "degrade",
+        "degraded",
+        "error",
+        "failed",
+        "removed",
+        "disconnected",
+        "unformatted",
+    }
     for device in arrays:
         value = device.get("status")
         statuses = value if isinstance(value, list) else [value]

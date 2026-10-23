@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import timedelta
+from typing import Any
 
 DOMAIN = "buffalo_linkstation"
 MANUFACTURER = "Buffalo"
@@ -18,6 +20,10 @@ CONF_TIMEOUT = "timeout"
 CONF_ENABLE_SHUTDOWN = "enable_shutdown"
 CONF_ENABLE_REBOOT = "enable_reboot"
 CONF_DEVICE_ID = "device_id"
+CONF_PROTOCOL = "protocol"
+
+PROTOCOL_JSON_RPC = "json_rpc"
+PROTOCOL_LEGACY_CGI = "legacy_cgi"
 
 DEFAULT_UPDATE_INTERVAL = 60
 DEFAULT_TIMEOUT = 20
@@ -43,6 +49,7 @@ VERIFIED_SHUTDOWN_FIRMWARE = {
 MODEL_ALIASES = {
     "LS220D(SANJO)": "LS220D",
     "LS420D(LS-WM)": "LS420D",
+    "LS-WVL(KOUGYOKU)": "LS-WVL",
 }
 FIRMWARE_ALIASES = {
     ("LS220D", "1.86-0.07"): "1.86",
@@ -85,3 +92,17 @@ def is_verified_shutdown(model: str | None, firmware: str | None) -> bool:
         return False
     versions = VERIFIED_SHUTDOWN_FIRMWARE.get(normalized_model)
     return versions is not None and normalized_firmware in versions
+
+
+def is_shutdown_enabled(
+    options: Mapping[str, Any], model: str | None, firmware: str | None
+) -> bool:
+    """Return the explicit shutdown setting or its compatibility default."""
+    if CONF_ENABLE_SHUTDOWN in options:
+        return bool(options[CONF_ENABLE_SHUTDOWN])
+    return is_verified_shutdown(model, firmware)
+
+
+def is_reboot_enabled(options: Mapping[str, Any]) -> bool:
+    """Return the explicit reboot setting, which defaults to disabled."""
+    return bool(options.get(CONF_ENABLE_REBOOT, False))

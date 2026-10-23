@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any
 
 import voluptuous as vol
+from aiohttp import ClientSession
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigFlowResult
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
@@ -22,11 +24,9 @@ from homeassistant.helpers.selector import (
 
 from .api import (
     BuffaloAuthenticationError,
-    BuffaloConnectionError,
     BuffaloIdentity,
-    BuffaloInvalidResponseError,
-    BuffaloJsonRpcError,
     BuffaloLinkStationApi,
+    BuffaloLinkStationError,
     BuffaloTimeoutError,
     extract_identity,
     normalize_host,
@@ -35,6 +35,7 @@ from .const import (
     CONF_DEVICE_ID,
     CONF_ENABLE_REBOOT,
     CONF_ENABLE_SHUTDOWN,
+    CONF_PROTOCOL,
     CONF_TIMEOUT,
     CONF_UPDATE_INTERVAL,
     DEFAULT_TIMEOUT,
@@ -44,8 +45,13 @@ from .const import (
     MAX_UPDATE_INTERVAL,
     MIN_TIMEOUT,
     MIN_UPDATE_INTERVAL,
-    is_verified_shutdown,
+    PROTOCOL_JSON_RPC,
+    PROTOCOL_LEGACY_CGI,
+    is_reboot_enabled,
+    is_shutdown_enabled,
 )
+from .legacy_api import LegacyLinkStationApi
+from .models import BuffaloLinkStationClient
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,6 +60,7 @@ class ValidationResult:
 
     identity: BuffaloIdentity
     unique_id: str
+    protocol: str = PROTOCOL_JSON_RPC
 
 
 def _number(minimum: int, maximum: int) -> NumberSelector:
@@ -114,25 +121,76 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
 
 
 async def _async_validate(
-    hass: HomeAssistant, user_input: dict[str, Any]
+    hass: HomeAssistant,
+    user_input: dict[str, Any],
+    *,
+    protocol: str | None = None,
 ) -> ValidationResult:
     host = normalize_host(user_input[CONF_HOST])
-    api = BuffaloLinkStationApi(
-        async_get_clientsession(hass),
+    session = async_get_clientsession(hass)
+    arguments = (
+        session,
         host,
         user_input[CONF_USERNAME],
         user_input[CONF_PASSWORD],
-        timeout=float(user_input.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)),
-        read_attempts=1,
     )
-    await api.login()
-    identity = extract_identity(await api.get_system_info(), host)
+    options = {
+        "timeout": float(user_input.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)),
+        "read_attempts": 1,
+    }
+    if protocol == PROTOCOL_LEGACY_CGI:
+        identity = await _validated_identity(
+            LegacyLinkStationApi(*arguments, **options), host
+        )
+        selected_protocol = PROTOCOL_LEGACY_CGI
+    elif protocol == PROTOCOL_JSON_RPC:
+        identity = await _validated_identity(
+            BuffaloLinkStationApi(*arguments, **options), host
+        )
+        selected_protocol = PROTOCOL_JSON_RPC
+    else:
+        identity, selected_protocol = await _detect_protocol(arguments, options, host)
     unique_id = (
         f"serial:{identity.serial_number.casefold()}"
         if identity.serial_number
         else f"host:{host}"
     )
-    return ValidationResult(identity, unique_id)
+    return ValidationResult(identity, unique_id, selected_protocol)
+
+
+async def _detect_protocol(
+    arguments: tuple[ClientSession, str, str, str],
+    options: dict[str, float | int],
+    host: str,
+) -> tuple[BuffaloIdentity, str]:
+    """Select a transport using authentication and read-only identity calls."""
+    modern = BuffaloLinkStationApi(*arguments, **options)
+    try:
+        identity = await _validated_identity(modern, host)
+    except BuffaloAuthenticationError:
+        raise
+    except BuffaloLinkStationError as modern_error:
+        legacy = LegacyLinkStationApi(*arguments, **options)
+        try:
+            identity = await _validated_identity(legacy, host)
+        except BuffaloLinkStationError as legacy_error:
+            raise legacy_error from modern_error
+        protocol = PROTOCOL_LEGACY_CGI
+    else:
+        protocol = PROTOCOL_JSON_RPC
+    return identity, protocol
+
+
+async def _validated_identity(
+    api: BuffaloLinkStationClient, host: str
+) -> BuffaloIdentity:
+    """Authenticate using one protocol and return its confirmed identity."""
+    await api.prepare_update()
+    features: dict[str, Any] = {}
+    with suppress(BuffaloLinkStationError):
+        features = await api.get_features()
+    system_info = await api.get_system_info()
+    return extract_identity(system_info, host, features)
 
 
 def _error_key(err: Exception) -> str:
@@ -146,7 +204,7 @@ def _error_key(err: Exception) -> str:
 class BuffaloLinkStationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Configure a Buffalo LinkStation through the UI."""
 
-    VERSION = 1
+    VERSION = 2
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -159,19 +217,14 @@ class BuffaloLinkStationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 result = await _async_validate(self.hass, user_input)
             except ValueError:
                 errors[CONF_HOST] = "invalid_host"
-            except (
-                BuffaloAuthenticationError,
-                BuffaloConnectionError,
-                BuffaloTimeoutError,
-                BuffaloInvalidResponseError,
-                BuffaloJsonRpcError,
-            ) as err:
+            except BuffaloLinkStationError as err:
                 errors["base"] = _error_key(err)
             else:
                 await self.async_set_unique_id(result.unique_id)
                 self._abort_if_unique_id_configured()
                 data = dict(user_input)
                 data[CONF_DEVICE_ID] = result.unique_id
+                data[CONF_PROTOCOL] = result.protocol
                 model = result.identity.model or "Buffalo LinkStation"
                 title = result.identity.hostname or model
                 return self.async_create_entry(title=title, data=data)
@@ -194,15 +247,12 @@ class BuffaloLinkStationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             merged = {**entry.data, **user_input}
             try:
-                result = await _async_validate(self.hass, merged)
-            except (
-                ValueError,
-                BuffaloAuthenticationError,
-                BuffaloConnectionError,
-                BuffaloTimeoutError,
-                BuffaloInvalidResponseError,
-                BuffaloJsonRpcError,
-            ) as err:
+                result = await _async_validate(
+                    self.hass,
+                    merged,
+                    protocol=entry.data.get(CONF_PROTOCOL, PROTOCOL_JSON_RPC),
+                )
+            except (ValueError, BuffaloLinkStationError) as err:
                 errors["base"] = (
                     _error_key(err)
                     if not isinstance(err, ValueError)
@@ -212,6 +262,7 @@ class BuffaloLinkStationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 if result.unique_id != entry.data.get(CONF_DEVICE_ID, entry.unique_id):
                     errors["base"] = "wrong_device"
                 else:
+                    merged[CONF_PROTOCOL] = result.protocol
                     return self.async_update_reload_and_abort(entry, data=merged)
         return self.async_show_form(
             step_id="reauth_confirm",
@@ -241,13 +292,7 @@ class BuffaloLinkStationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 result = await _async_validate(self.hass, user_input)
             except ValueError:
                 errors[CONF_HOST] = "invalid_host"
-            except (
-                BuffaloAuthenticationError,
-                BuffaloConnectionError,
-                BuffaloTimeoutError,
-                BuffaloInvalidResponseError,
-                BuffaloJsonRpcError,
-            ) as err:
+            except BuffaloLinkStationError as err:
                 errors["base"] = _error_key(err)
             else:
                 original_id = entry.data.get(CONF_DEVICE_ID, entry.unique_id)
@@ -266,6 +311,7 @@ class BuffaloLinkStationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 else:
                     data = dict(user_input)
                     data[CONF_DEVICE_ID] = result.unique_id
+                    data[CONF_PROTOCOL] = result.protocol
                     options = {
                         **entry.options,
                         CONF_UPDATE_INTERVAL: data.pop(CONF_UPDATE_INTERVAL),
@@ -286,12 +332,12 @@ class BuffaloLinkStationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def async_get_options_flow(
         _config_entry: config_entries.ConfigEntry,
     ) -> config_entries.OptionsFlow:
-        """Return the polling and dangerous-control options flow."""
+        """Return the polling and power-control options flow."""
         return BuffaloLinkStationOptionsFlow()
 
 
 class BuffaloLinkStationOptionsFlow(config_entries.OptionsFlow):
-    """Manage polling and explicit model compatibility overrides."""
+    """Manage polling and explicit power-control settings."""
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -303,14 +349,17 @@ class BuffaloLinkStationOptionsFlow(config_entries.OptionsFlow):
             **self.config_entry.data,
             **self.config_entry.options,
         }
-        if CONF_ENABLE_SHUTDOWN not in defaults:
+        if CONF_ENABLE_SHUTDOWN not in self.config_entry.options:
             runtime_data = getattr(self.config_entry, "runtime_data", None)
             model = firmware = None
             if runtime_data is not None:
                 identity = runtime_data.coordinator.data.identity
                 model = identity.model
                 firmware = identity.firmware
-            defaults[CONF_ENABLE_SHUTDOWN] = is_verified_shutdown(model, firmware)
+            defaults[CONF_ENABLE_SHUTDOWN] = is_shutdown_enabled(
+                self.config_entry.options, model, firmware
+            )
+        defaults[CONF_ENABLE_REBOOT] = is_reboot_enabled(self.config_entry.options)
         return self.async_show_form(
             step_id="init", data_schema=_options_schema(defaults)
         )

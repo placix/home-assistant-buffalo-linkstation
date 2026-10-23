@@ -176,15 +176,17 @@ is available. Both completed hardware captures report
 
 `System.shutdown` is source-confirmed in byte-identical shutdown-page code for
 both bundles. It is also hardware-confirmed on LS220D firmware 1.86 and LS420D
-firmware 1.88. Those exact model/firmware pairs are enabled without opt-in;
-other pairs remain opt-in. `SUPPORT_SHUTDOWN_FROMWEB` controls browser UI
-visibility and is not treated as an authoritative backend capability flag.
+firmware 1.88. A missing shutdown option defaults to enabled for those exact
+pairs and disabled for other pairs; an explicit option always controls button
+availability. `SUPPORT_SHUTDOWN_FROMWEB` controls browser UI visibility and is
+not treated as an authoritative backend capability flag.
 
 No `System.reboot` string occurs anywhere in either collected tree. The
 previously observed reboot-page call using `System.reboot` is credible evidence
 from a page that may simply be absent from these collections, but it is not
-confirmed by the files currently retained and has not been hardware-tested.
-The method remains implemented behind explicit opt-in and is never probed.
+confirmed by the files currently retained. The method has since been exercised
+through Home Assistant on real hardware. It remains disabled by default,
+controlled by an explicit option, and is never probed automatically.
 
 ## Remaining uncertainties
 
@@ -197,6 +199,6 @@ The method remains implemented behind explicit opt-in and is never probed.
   by the browser request and hardware behavior.
 - The backend's treatment of JSON-RPC response IDs/protocol markers needs
   hardware confirmation because the Web UI does not validate them.
-- The reboot page, its role checks, and hardware behavior remain unverified.
+- The reboot page and its role checks remain absent from the retained source.
 - Feature-flag values other than the reported LS220D shutdown value have not
   been captured for either model.

@@ -15,9 +15,11 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from . import BuffaloLinkStationConfigEntry
 from .api import BuffaloLinkStationError
 from .const import (
-    CONF_ENABLE_REBOOT,
     CONF_ENABLE_SHUTDOWN,
-    is_verified_shutdown,
+    CONF_PROTOCOL,
+    PROTOCOL_JSON_RPC,
+    is_reboot_enabled,
+    is_shutdown_enabled,
     normalize_firmware,
     normalize_model,
 )
@@ -91,18 +93,24 @@ class BuffaloLinkStationButton(BuffaloLinkStationEntity, ButtonEntity):
             reason = "operation_in_progress"
         elif self.entity_description.key == "shutdown":
             identity = self.coordinator.data.identity
-            if is_verified_shutdown(identity.model, identity.firmware):
-                reason = "available_verified_model_firmware"
-            elif self._entry.options.get(CONF_ENABLE_SHUTDOWN, False):
-                reason = "available_explicit_opt_in"
-            elif identity.model is None or identity.firmware is None:
-                reason = "missing_model_or_firmware"
+            if is_shutdown_enabled(
+                self._entry.options, identity.model, identity.firmware
+            ):
+                reason = (
+                    "available_enabled"
+                    if CONF_ENABLE_SHUTDOWN in self._entry.options
+                    else "available_verified_default"
+                )
             else:
-                reason = "unverified_model_or_firmware"
-        elif self._entry.options.get(CONF_ENABLE_REBOOT, False):
-            reason = "available_explicit_opt_in"
+                reason = (
+                    "shutdown_disabled"
+                    if CONF_ENABLE_SHUTDOWN in self._entry.options
+                    else "shutdown_disabled_unverified_default"
+                )
+        elif is_reboot_enabled(self._entry.options):
+            reason = "available_enabled"
         else:
-            reason = "reboot_opt_in_required"
+            reason = "reboot_disabled"
         return reason
 
     @property
@@ -111,6 +119,7 @@ class BuffaloLinkStationButton(BuffaloLinkStationEntity, ButtonEntity):
         identity = self.coordinator.data.identity
         normalized_model = normalize_model(identity.model)
         return {
+            "protocol": self._entry.data.get(CONF_PROTOCOL, PROTOCOL_JSON_RPC),
             "reported_model": identity.model,
             "reported_firmware": identity.firmware,
             "recognized_model": normalized_model,

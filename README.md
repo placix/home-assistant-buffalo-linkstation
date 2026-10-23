@@ -1,7 +1,8 @@
 # Buffalo LinkStation for Home Assistant
 
 Local monitoring and explicit power controls for compatible Buffalo LinkStation
-NAS devices through their JSON-RPC API. No Buffalo cloud service is used.
+NAS devices through the modern JSON-RPC or legacy CGI interface. No Buffalo
+cloud service is used.
 
 This is an early, model-conscious integration. Buffalo firmware responses vary,
 so an entity is created only when its source field is present. It never probes
@@ -10,6 +11,8 @@ power controls during discovery or polling.
 ## Features
 
 - UI configuration and one independent config entry per NAS
+- Safe automatic selection between `/nasapi/` JSON-RPC and `/dynamic.pl`
+  legacy CGI during initial configuration
 - Automatic login, in-memory session handling, reauthentication after an
   explicit session rejection, request timeouts, and sanitized logs
 - Coordinator polling with recovery after temporary network failures
@@ -17,22 +20,24 @@ power controls during discovery or polling.
 - Firmware, CPU, system message/error, disk/RAID status, and storage capacity
   and utilization sensors when the corresponding fields are returned
 - Reachability, system-error, and RAID-problem binary sensors when supported
-- Serialized shutdown and experimental restart buttons for Home Assistant
-  automations
-- Configurable polling interval, timeout, and explicit power-control overrides
+- Serialized shutdown and restart buttons for Home Assistant automations
+- Configurable polling interval, timeout, and explicit power-control settings
 - English and German translations
 
-The examined Web UI treats portal `used_size` and `total_size` values as KiB:
+The modern Web UI treats portal `used_size` and `total_size` values as KiB:
 it divides each by 1024 twice before presenting a capacity. The integration
 therefore exposes converted GiB and derives aggregate utilization from those
-same raw totals.
+same raw totals. LS-WVL reports strings labelled `KB`, but the byte basis of
+that label is not verified. Its used and total sensors therefore retain the raw
+numbers and use the explicit unit `KB (reported)`; they are not converted.
 
 ## Compatibility
 
 | Model | Firmware | Monitoring | Shutdown | Restart | Evidence |
 | --- | --- | --- | --- | --- | --- |
-| LS220D | 1.86 | **Verified**: portal, features, disks, RAID1, health, and capacity | **Verified** | Unverified; opt-in only | Sanitized read-only capture plus successful hardware shutdown test |
-| LS420D | 1.88 | **Verified**: portal, features, disks, RAID0, health, and capacity | **Verified** | Unverified; opt-in only | Sanitized read-only capture plus successful hardware shutdown test |
+| LS220D | 1.86 | **Verified**: portal, features, disks, RAID1, health, and capacity | **Verified** | Hardware-tested; disabled by default | Sanitized read-only capture plus successful Home Assistant power-control testing |
+| LS420D | 1.88 | **Verified**: portal, features, disks, RAID0, health, and capacity | **Verified** | Hardware-tested; disabled by default | Sanitized read-only capture plus successful Home Assistant power-control testing |
+| LS-WVL | 1.75 | **Verified**: native login, session validation, storage, internal-disk membership, RAID1 mode/status | Firmware-derived; disabled by default and not hardware-tested | Firmware-derived; disabled by default and not hardware-tested | Sanitized read-only CGI capture plus successful native-login testing |
 | LS-WXL | Unknown | Not supported by this API client | Not tested | Not tested | Older third-party integration uses a different Python library |
 
 Other models are not assumed compatible. Please attach sanitized JSON response
@@ -60,8 +65,9 @@ evaluation.
 For manual installation, copy `custom_components/buffalo_linkstation` into Home
 Assistant's `config/custom_components/` directory and restart Home Assistant.
 
-Use a DHCP reservation or stable hostname. The endpoint is always
-`http://<host>/nasapi/`; credentials are never put into the URL.
+Use a DHCP reservation or stable hostname. The integration safely detects and
+stores either `http://<host>/nasapi/` or `http://<host>/dynamic.pl` during
+configuration; credentials are never put into the URL.
 
 ## Entities and controls
 
@@ -71,18 +77,35 @@ coordinator entities unavailable, so old measurements are not presented as
 current. In particular, an unreachable NAS is **unavailable**, not "powered
 off"; loss of network connectivity does not prove a clean shutdown.
 
-The shutdown button is available without an opt-in on the two hardware-verified
-model/firmware combinations: LS220D 1.86 and LS420D 1.88. Other combinations
-remain opt-in. `SUPPORT_SHUTDOWN_FROMWEB` is deliberately not used to decide
-API capability: both completed hardware captures report
+Shutdown and restart button entities are always registered, with stable unique
+IDs, for every configured LinkStation. Their options control availability; they
+do not add or remove entities. An enabled button is available while the NAS is
+reachable and no other power operation is running. A disabled button remains
+registered but unavailable.
+
+For a new entry, shutdown defaults to enabled on the two hardware-verified
+model/firmware combinations (LS220D 1.86 and LS420D 1.88) and disabled on other
+combinations. An explicit **Enable shutdown** value always wins, including an
+explicitly disabled value on verified hardware. Restart defaults to disabled
+and is controlled by **Enable reboot**. Existing explicit values are preserved.
+
+`SUPPORT_SHUTDOWN_FROMWEB` is deliberately not used to decide API capability:
+both completed hardware captures report
 `SUPPORT_SHUTDOWN_FROMWEB = 0`, yet authenticated `System.shutdown` was
 successfully tested on both devices. The flag describes Web UI behavior and is
 not an authoritative statement about whether the underlying JSON-RPC method works.
-It is also never used as permission to expose shutdown on an unverified model.
-Restart remains experimental and explicit opt-in. No `System.reboot` invocation
-was present in the supplied firmware JavaScript, so the Web UI feature flag is
-not used as proof that this client method is supported. Both controls can be
-reviewed under the integration's **Configure** options.
+It is also never used as permission to enable shutdown by default on an
+unverified model. Although restart has now been exercised through Home
+Assistant on real hardware, it remains disabled by default. No `System.reboot`
+invocation was present in the supplied firmware JavaScript, so the Web UI
+feature flag is not used for availability. Both controls can be changed under
+the integration's **Configure** options.
+
+For LS-WVL, both controls default to disabled. The implemented form requests
+(`shutRestartLS` with `action=shutdown` or `action=reboot`) are confirmed from
+firmware source only and have not been hardware-tested. Enabling either option
+does not probe or execute it; an operation is sent only after the corresponding
+button is explicitly pressed.
 
 Power operations occur only after a button press or a standard Home Assistant
 `button.press` action. Operations are serialized. A timeout is never retried,
@@ -131,7 +154,8 @@ power-cycled, and LinkStation wake behavior depends on its own power settings.
 
 ## Troubleshooting
 
-- Confirm Home Assistant can reach `http://<host>/nasapi/` on the LAN.
+- Confirm Home Assistant can reach the NAS Web UI on the LAN. Modern devices
+  use `/nasapi/`; LS-WVL uses `/dynamic.pl`.
 - Confirm the NAS web interface accepts the same credentials.
 - Increase the timeout under **Configure** on a slow or busy NAS.
 - For a shutdown button that is unexpectedly unavailable, open
@@ -172,7 +196,7 @@ storage. Session IDs remain in memory only.
 - The implementation is covered by mocked response tests; no automated test
   talks to real hardware or sends a real power command.
 - Sanitized local captures validate the healthy-state response structures for
-  both models. They remain Git-ignored and are not distributed with the
+  all three models. They remain Git-ignored and are not distributed with the
   integration, so CI skips capture-backed cases when those files are absent.
 - Degraded, rebuilding, missing-disk, non-empty system-message, and non-empty
   system-error responses remain covered by synthetic tests rather than captured
@@ -181,6 +205,11 @@ storage. Session IDs remain in memory only.
   not been established.
 - Shares are fetched to validate API/session behavior but are not exposed as
   entities because names may be sensitive and are not health measurements.
+- LS-WVL does not expose confirmed firmware, CPU, fan, SMART, or system-error
+  fields through the implemented read actions. Those entities are not created,
+  and firmware 1.75 remains operator-supplied compatibility metadata.
+- LS-WVL session login and read-only monitoring are hardware-verified, but its
+  shutdown and reboot operations remain source-derived and unverified.
 
 ## Manual hardware test checklist
 

@@ -6,13 +6,13 @@ import asyncio
 import json
 import logging
 from collections.abc import Mapping
-from dataclasses import dataclass
 from typing import Any, Final
 from uuid import uuid4
 
 from aiohttp import ClientError, ClientResponse, ClientSession, ClientTimeout
 
 from .const import DEFAULT_TIMEOUT
+from .models import BuffaloIdentity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -64,16 +64,6 @@ class BuffaloJsonRpcError(BuffaloLinkStationError):
 
 class BuffaloUnsupportedOperationError(BuffaloLinkStationError):
     """Raised when an operation is not enabled for the device."""
-
-
-@dataclass(frozen=True, slots=True)
-class BuffaloIdentity:
-    """Stable and display identity derived from verified API data."""
-
-    hostname: str | None = None
-    model: str | None = None
-    firmware: str | None = None
-    serial_number: str | None = None
 
 
 def normalize_host(host: str) -> str:
@@ -302,6 +292,10 @@ class BuffaloLinkStationApi:
     async def get_system_info(self) -> dict[str, Any]:
         """Return the authenticated portal/NAS information response."""
         return _mapping(await self._call("get_portal_info_authneed"))
+
+    async def prepare_update(self) -> None:
+        """Ensure the authenticated JSON-RPC session is ready for polling."""
+        await self.login()
 
     async def get_features(self) -> dict[str, Any]:
         """Return session-independent advertised NAS feature flags."""

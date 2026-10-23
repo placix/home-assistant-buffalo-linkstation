@@ -91,6 +91,65 @@ def test_disk_status_excludes_disconnected_usb_placeholder():
     assert parsing.disk_status(snapshot(devices=devices)) == "fine"
 
 
+def test_legacy_storage_preserves_reported_kb_without_unit_conversion():
+    data = snapshot(
+        {
+            "storage": {
+                "used": 1_369_523_620,
+                "total": 1_937_364_900,
+                "unit": "vendor_reported_kb",
+                "utilization": 70.69,
+            }
+        }
+    )
+
+    assert parsing.used_storage(data) == 1_369_523_620
+    assert parsing.total_storage(data) == 1_937_364_900
+    assert isinstance(parsing.used_storage(data), int)
+    assert parsing.utilization(data) == 70.7
+    assert parsing.storage_display_unit(data) == "KB (reported)"
+
+
+def test_legacy_array_and_membership_parsing_ignores_disconnected_usb():
+    devices = [
+        {
+            "device_type": "array",
+            "name": "array1",
+            "status": "ok",
+            "raid_level": "raid1",
+            "members": ("disk1", "disk2"),
+        },
+        {
+            "device_type": "disk",
+            "name": "disk1",
+            "interface": "sata",
+            "status": "ok",
+            "array": "array1",
+            "member_state": "ok",
+        },
+        {
+            "device_type": "disk",
+            "name": "usbdisk1",
+            "interface": "usb",
+            "status": "disconnect",
+        },
+    ]
+    data = snapshot(devices=devices)
+
+    assert parsing.disk_status(data) == "ok"
+    assert parsing.raid_status(data) == "ok"
+    assert parsing.raid_mode(data) == "raid1"
+    assert parsing.raid_problem(data) is False
+    assert parsing.disk_details(data) == [
+        {
+            "name": "disk1",
+            "status": "ok",
+            "array": "array1",
+            "member_state": "ok",
+        }
+    ]
+
+
 def test_feature_and_recursive_value_parsing():
     features = {"features": {"SUPPORT_REBOOT_FROMWEB": "1"}}
     assert parsing.feature_enabled(features, "SUPPORT_REBOOT_FROMWEB")

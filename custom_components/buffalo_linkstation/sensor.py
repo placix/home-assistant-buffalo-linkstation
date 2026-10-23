@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 from homeassistant.components.sensor import (
     SensorEntity,
@@ -26,7 +27,7 @@ from .entity import BuffaloLinkStationEntity
 class BuffaloSensorDescription(SensorEntityDescription):
     """Describe a sensor backed by a safe extraction function."""
 
-    value_fn: Callable[[BuffaloLinkStationData], str | float | None]
+    value_fn: Callable[[BuffaloLinkStationData], str | float | int | None]
 
 
 SENSORS: tuple[BuffaloSensorDescription, ...] = (
@@ -90,6 +91,12 @@ SENSORS: tuple[BuffaloSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=parsing.raid_status,
     ),
+    BuffaloSensorDescription(
+        key="raid_mode",
+        translation_key="raid_mode",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=parsing.raid_mode,
+    ),
 )
 
 
@@ -123,6 +130,24 @@ class BuffaloLinkStationSensor(BuffaloLinkStationEntity, SensorEntity):
         self._attr_unique_id = f"{entry.unique_id}_{description.key}"
 
     @property
-    def native_value(self) -> str | float | None:
+    def native_value(self) -> str | float | int | None:
         """Return the value from the latest successful snapshot."""
         return self.entity_description.value_fn(self.coordinator.data)
+
+    @property
+    def native_unit_of_measurement(self) -> str | None:
+        """Use an explicit non-converted unit for legacy reported KB values."""
+        if self.entity_description.key in {"storage_used", "storage_total"}:
+            return parsing.storage_display_unit(self.coordinator.data)
+        return self.entity_description.native_unit_of_measurement
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Expose normalized disk/array details without raw response data."""
+        if self.entity_description.key == "disk_status":
+            return {"disks": parsing.disk_details(self.coordinator.data)}
+        if self.entity_description.key in {"raid_status", "raid_mode"}:
+            return {"arrays": parsing.raid_details(self.coordinator.data)}
+        if self.entity_description.key in {"storage_used", "storage_total"}:
+            return {"source_unit": parsing.storage_source_unit(self.coordinator.data)}
+        return None

@@ -21,13 +21,13 @@ stable unique IDs, device-centric entity naming, and translated exceptions.
 
 ## Protocol boundaries
 
-Only observed/source-evidenced methods are used for polling. Power methods are
-invoked exclusively by button entities. No capability probe
-can invoke either method. Read-only calls retry connection/timeout failures at
-most once; destructive calls are never retried after connection loss or a
-timeout. An explicit authentication rejection is safe to reauthenticate and
-resubmit because JSON-RPC rejected the original request before accepting the
-operation.
+Only observed/source-evidenced methods are used for polling. Modern JSON-RPC
+and LS-WVL legacy CGI are separate clients behind one protocol-neutral client
+contract. Configuration tries only authentication and read-only identity calls,
+then stores the selected protocol in the config entry. Power methods are
+invoked exclusively by button entities; no capability probe can invoke either
+method. Read-only calls retry connection/timeout failures at most once, while
+destructive calls are never retried after connection loss or a timeout.
 
 Request IDs are random and checked against the response. Sensitive request
 parameters and response bodies are never logged. The Home Assistant-owned HTTP
@@ -84,8 +84,9 @@ source.
   NAS remains the authority and will reject an unauthorized command.
 - The progress code polls portal/job endpoints to observe shutdown/restart
   transitions. It does not establish the restart command name or parameters.
-  No `System.reboot` call was found anywhere in the supplied files, so restart
-  remains unverified and explicit opt-in.
+  No `System.reboot` call was found anywhere in the supplied files. Restart has
+  since been exercised through Home Assistant on real hardware, but remains
+  explicitly controlled and disabled by default.
 
 The static API metadata referenced by the Web UI was not supplied. Therefore,
 apart from independently confirmed `getNasFeature`, the complete list of
@@ -100,8 +101,9 @@ read-only Windows capture workflow and local fixture validation.
 ### Verified shutdown capability
 
 `System.shutdown` has been successfully tested on LS220D firmware 1.86 and
-LS420D firmware 1.88. Those exact model/firmware pairs receive shutdown support
-without an experimental opt-in. Other pairs remain opt-in until verified.
+LS420D firmware 1.88. A missing shutdown option defaults to enabled for those
+exact pairs and disabled for other pairs. Once stored, the user's explicit
+setting always wins, including disabling shutdown on verified hardware.
 
 `SUPPORT_SHUTDOWN_FROMWEB` must not be treated as an authoritative JSON-RPC
 capability indicator. Both completed hardware captures report the flag as `0`
@@ -132,12 +134,25 @@ Original Buffalo Web UI JavaScript is kept in model-specific local directories:
 
 - `reference/LS220D/` for LS220D firmware 1.86
 - `reference/LS420D/` for LS420D firmware 1.88
+- `reference/LS-WVL/` for LS-WVL firmware 1.75
 
 Each model preserves the firmware Web UI hierarchy below its directory. Page
 scripts are stored under `js/`, shared Web UI logic under `js/common/`, Ext JS
 files under `js/ext/` (including `js/ext/locale/`), and UI extensions under
 their original `js/ux/` component directories. A file absent from one firmware
 is not copied from the other model or replaced with a placeholder.
+
+LS-WVL 1.75 uses a separate legacy Web UI layout rooted at `static/`, not the
+newer models' `js/` layout. Its own HTML and dynamic loader references establish
+the hierarchy, including framework files under `static/ext/`, authentication
+and configuration files under `static/authentication/` and `static/cfg/`, and
+feature pages under `static/menus/`. In that legacy tree, user/group management
+is under `static/menus/usrGrpMnt/`, shared utilities are under
+`static/menus/utils/`, and system settings are under
+`static/menus/system/settings/`. The LS-WVL collection remains local-only
+vendor reference material. The integration implements its independently
+documented `/dynamic.pl` behavior in a separate client; no vendor source is
+copied into the integration.
 
 The models remain separate even when files happen to be identical. This makes
 firmware comparisons possible without erasing model-specific implementations

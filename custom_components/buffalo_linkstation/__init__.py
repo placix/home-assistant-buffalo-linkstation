@@ -8,19 +8,21 @@ from typing import TYPE_CHECKING, Any
 
 from .api import (
     BuffaloAuthenticationError,
-    BuffaloConnectionError,
-    BuffaloInvalidResponseError,
-    BuffaloJsonRpcError,
     BuffaloLinkStationApi,
-    BuffaloTimeoutError,
+    BuffaloLinkStationError,
 )
 from .const import (
+    CONF_PROTOCOL,
     CONF_TIMEOUT,
     CONF_UPDATE_INTERVAL,
     DEFAULT_TIMEOUT,
     DEFAULT_UPDATE_INTERVAL,
     PLATFORMS,
+    PROTOCOL_JSON_RPC,
+    PROTOCOL_LEGACY_CGI,
 )
+from .legacy_api import LegacyLinkStationApi
+from .models import BuffaloLinkStationClient
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -33,7 +35,7 @@ if TYPE_CHECKING:
 class BuffaloLinkStationRuntimeData:
     """Runtime objects owned by one config entry."""
 
-    api: BuffaloLinkStationApi
+    api: BuffaloLinkStationClient
     coordinator: BuffaloLinkStationCoordinator
 
 
@@ -43,7 +45,7 @@ else:
     type BuffaloLinkStationConfigEntry = Any
 
 
-def create_api(hass: HomeAssistant, entry: ConfigEntry) -> BuffaloLinkStationApi:
+def create_api(hass: HomeAssistant, entry: ConfigEntry) -> BuffaloLinkStationClient:
     """Create an API client backed by Home Assistant's shared HTTP session."""
     from homeassistant.const import (  # noqa: PLC0415
         CONF_HOST,
@@ -54,7 +56,12 @@ def create_api(hass: HomeAssistant, entry: ConfigEntry) -> BuffaloLinkStationApi
         async_get_clientsession,
     )
 
-    return BuffaloLinkStationApi(
+    api_class = (
+        LegacyLinkStationApi
+        if entry.data.get(CONF_PROTOCOL, PROTOCOL_JSON_RPC) == PROTOCOL_LEGACY_CGI
+        else BuffaloLinkStationApi
+    )
+    return api_class(
         async_get_clientsession(hass),
         entry.data[CONF_HOST],
         entry.data[CONF_USERNAME],
@@ -92,20 +99,15 @@ async def async_setup_entry(
         await coordinator.async_config_entry_first_refresh()
     except ConfigEntryAuthFailed:
         raise
-    except (
-        BuffaloConnectionError,
-        BuffaloTimeoutError,
-        BuffaloInvalidResponseError,
-        BuffaloJsonRpcError,
-    ) as err:
-        raise ConfigEntryNotReady(
-            translation_domain="buffalo_linkstation",
-            translation_key="cannot_connect",
-        ) from err
     except BuffaloAuthenticationError as err:
         raise ConfigEntryAuthFailed(
             translation_domain="buffalo_linkstation",
             translation_key="invalid_auth",
+        ) from err
+    except BuffaloLinkStationError as err:
+        raise ConfigEntryNotReady(
+            translation_domain="buffalo_linkstation",
+            translation_key="cannot_connect",
         ) from err
 
     entry.runtime_data = BuffaloLinkStationRuntimeData(api, coordinator)
@@ -119,6 +121,17 @@ async def async_unload_entry(
 ) -> bool:
     """Unload one Buffalo LinkStation without closing the shared HTTP session."""
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+
+async def async_migrate_entry(
+    hass: HomeAssistant, entry: BuffaloLinkStationConfigEntry
+) -> bool:
+    """Mark pre-legacy entries as JSON-RPC without changing identity or options."""
+    if entry.version > 1:
+        return True
+    data = {**entry.data, CONF_PROTOCOL: PROTOCOL_JSON_RPC}
+    hass.config_entries.async_update_entry(entry, data=data, version=2)
+    return True
 
 
 async def _async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:

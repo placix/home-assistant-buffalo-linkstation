@@ -25,6 +25,7 @@ from custom_components.buffalo_linkstation.coordinator import (
 def make_api():
     api = MagicMock()
     api.host = "nas.local"
+    api.prepare_update = AsyncMock()
     api.get_system_info = AsyncMock(
         return_value={
             "hostname": "office-nas",
