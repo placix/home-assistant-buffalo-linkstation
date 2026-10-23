@@ -211,7 +211,7 @@ work on Windows. It deliberately does not install the complete Home Assistant
 runtime on Windows.
 
 ```powershell
-cd C:\Users\pLaCiX\Projects\home-assistant-buffalo-linkstation
+cd home-assistant-buffalo-linkstation
 .\setup.ps1
 
 .\.venv\Scripts\python.exe tools\capture_readonly.py --model LS220D

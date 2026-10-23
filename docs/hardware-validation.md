@@ -57,7 +57,7 @@ artifacts.
 Open PowerShell and run the repository setup script:
 
 ```powershell
-cd C:\Users\pLaCiX\Projects\home-assistant-buffalo-linkstation
+cd home-assistant-buffalo-linkstation
 .\setup.ps1
 ```
 

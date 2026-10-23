@@ -12,6 +12,10 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Run privacy check
+        run: python3 tools/check_privacy.py
       - name: Create GitHub release draft
         env:
           GH_TOKEN: ${{ github.token }}

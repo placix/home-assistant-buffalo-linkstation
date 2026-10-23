@@ -18,6 +18,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+      - name: Run privacy check
+        run: python tools/check_privacy.py
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
