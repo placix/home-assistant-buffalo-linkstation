@@ -36,6 +36,19 @@ VERIFIED_SHUTDOWN_FIRMWARE = {
     "LS420D": frozenset({"1.88"}),
 }
 
+# Alternate product strings and full version displays confirmed by the two
+# sanitized hardware captures and the matching Buffalo Web UI implementation.
+# Keep these aliases explicit so an unverified model or build is never enabled
+# merely because its name starts with a verified model number.
+MODEL_ALIASES = {
+    "LS220D(SANJO)": "LS220D",
+    "LS420D(LS-WM)": "LS420D",
+}
+FIRMWARE_ALIASES = {
+    ("LS220D", "1.86-0.07"): "1.86",
+    ("LS420D", "1.88-0.03"): "1.88",
+}
+
 # Feature keys observed in getNasFeature responses.
 FEATURE_REBOOT = "SUPPORT_REBOOT_FROMWEB"
 FEATURE_SHUTDOWN = "SUPPORT_SHUTDOWN_FROMWEB"
@@ -43,9 +56,32 @@ FEATURE_SHUTDOWN = "SUPPORT_SHUTDOWN_FROMWEB"
 REDACTED = "**REDACTED**"
 
 
+def normalize_model(model: str | None) -> str | None:
+    """Normalize a confirmed Buffalo model spelling without widening support."""
+    if model is None:
+        return None
+    normalized = "".join(model.split()).upper()
+    if not normalized:
+        return None
+    return MODEL_ALIASES.get(normalized, normalized)
+
+
+def normalize_firmware(firmware: str | None, model: str | None = None) -> str | None:
+    """Normalize confirmed major/build formatting for a specific model."""
+    if firmware is None:
+        return None
+    normalized = "".join(firmware.split())
+    if not normalized:
+        return None
+    normalized_model = normalize_model(model)
+    return FIRMWARE_ALIASES.get((normalized_model, normalized), normalized)
+
+
 def is_verified_shutdown(model: str | None, firmware: str | None) -> bool:
     """Return whether shutdown was verified for this exact model/firmware pair."""
-    if model is None or firmware is None:
+    normalized_model = normalize_model(model)
+    normalized_firmware = normalize_firmware(firmware, normalized_model)
+    if normalized_model is None or normalized_firmware is None:
         return False
-    versions = VERIFIED_SHUTDOWN_FIRMWARE.get(model.strip().upper())
-    return versions is not None and firmware.strip() in versions
+    versions = VERIFIED_SHUTDOWN_FIRMWARE.get(normalized_model)
+    return versions is not None and normalized_firmware in versions

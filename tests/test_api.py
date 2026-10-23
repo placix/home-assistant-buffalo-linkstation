@@ -323,3 +323,22 @@ def test_identity_uses_confirmed_portal_fields():
     assert identity == identity.__class__(
         hostname="nas", model="LS420D", firmware="1.88", serial_number="ABC"
     )
+
+
+def test_identity_uses_feature_model_without_mistaking_disk_product_name():
+    identity = extract_identity(
+        {
+            "hostname": "nas",
+            "fw_version_major": "1.86",
+            "disks": [{"product_name": "WDC DRIVE MODEL"}],
+        },
+        "fallback",
+        {"PRODUCT_NAME": "LS220D(SANJO)"},
+    )
+    assert identity.model == "LS220D(SANJO)"
+
+    missing_model = extract_identity(
+        {"disks": [{"product_name": "WDC DRIVE MODEL"}]},
+        "fallback",
+    )
+    assert missing_model.model is None

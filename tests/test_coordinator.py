@@ -91,6 +91,30 @@ async def test_feature_failure_preserves_monitoring_and_retries(hass):
     assert api.get_features.await_count == 2
 
 
+async def test_transient_missing_identity_fields_preserve_last_known_identity(hass):
+    entry = MockConfigEntry(domain=DOMAIN, unique_id="serial:abc")
+    entry.add_to_hass(hass)
+    api = make_api()
+    api.get_system_info.side_effect = [
+        {
+            "hostname": "office-nas",
+            "product_name": "LS220D",
+            "fw_version_major": "1.86",
+            "serial_number": "ABC",
+        },
+        {"hostname": "office-nas"},
+    ]
+    coordinator = BuffaloLinkStationCoordinator(hass, entry, api, timedelta(seconds=60))
+
+    first = await coordinator._async_update_data()
+    second = await coordinator._async_update_data()
+
+    assert first.identity.model == "LS220D"
+    assert second.identity.model == "LS220D"
+    assert second.identity.firmware == "1.86"
+    assert second.identity.serial_number == "ABC"
+
+
 async def test_unreachable_entity_is_unavailable_not_off(hass):
     entry = MockConfigEntry(domain=DOMAIN, unique_id="serial:abc")
     entry.add_to_hass(hass)

@@ -58,6 +58,7 @@ class BuffaloLinkStationCoordinator(DataUpdateCoordinator[BuffaloLinkStationData
         self.api = api
         self.control_lock = asyncio.Lock()
         self._features: dict[str, Any] | None = None
+        self._identity: BuffaloIdentity | None = None
 
     async def _async_update_data(self) -> BuffaloLinkStationData:
         features = self._features or {}
@@ -104,9 +105,21 @@ class BuffaloLinkStationCoordinator(DataUpdateCoordinator[BuffaloLinkStationData
                 translation_domain=DOMAIN,
                 translation_key="update_failed",
             ) from err
+        observed_identity = extract_identity(system_info, self.api.host, features)
+        previous_identity = self._identity
+        identity = BuffaloIdentity(
+            hostname=observed_identity.hostname,
+            model=observed_identity.model
+            or (previous_identity.model if previous_identity else None),
+            firmware=observed_identity.firmware
+            or (previous_identity.firmware if previous_identity else None),
+            serial_number=observed_identity.serial_number
+            or (previous_identity.serial_number if previous_identity else None),
+        )
+        self._identity = identity
         return BuffaloLinkStationData(
             system_info=system_info,
             features=features,
             devices=tuple(devices),
-            identity=extract_identity(system_info, self.api.host),
+            identity=identity,
         )

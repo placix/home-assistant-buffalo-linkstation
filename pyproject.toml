@@ -1,6 +1,6 @@
 [project]
 name = "home-assistant-buffalo-linkstation"
-version = "0.1.0"
+version = "0.1.1"
 description = "Home Assistant integration for Buffalo LinkStation NAS devices"
 readme = "README.md"
 requires-python = ">=3.13.0"

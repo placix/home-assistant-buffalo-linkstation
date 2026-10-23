@@ -134,6 +134,14 @@ power-cycled, and LinkStation wake behavior depends on its own power settings.
 - Confirm Home Assistant can reach `http://<host>/nasapi/` on the LAN.
 - Confirm the NAS web interface accepts the same credentials.
 - Increase the timeout under **Configure** on a slow or busy NAS.
+- For a shutdown button that is unexpectedly unavailable, open
+  **Developer Tools → States** and inspect only that button's diagnostic
+  attributes. `reported_model` and `reported_firmware` show the API identity;
+  `recognized_model` and `recognized_firmware` show the safety-normalized
+  values. `availability_reason` distinguishes an unavailable coordinator, a
+  running power operation, missing identity fields, and an unverified pair.
+  These attributes never include credentials, session IDs, hostnames, network
+  addresses, serial numbers, or response bodies.
 - If entities are missing, the firmware likely did not return their known
   fields. Enable debug logging, reproduce one update, and share only sanitized
   field names/types—not response values that could identify your device.

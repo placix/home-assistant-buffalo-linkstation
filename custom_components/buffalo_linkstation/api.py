@@ -111,17 +111,37 @@ def _find_value(data: Any, keys: tuple[str, ...]) -> str | None:
     return None
 
 
+def _find_direct_value(data: Mapping[str, Any], keys: tuple[str, ...]) -> str | None:
+    """Find a scalar only at the response root, excluding nested disk metadata."""
+    wanted = {key.casefold() for key in keys}
+    for key, value in data.items():
+        if str(key).casefold() in wanted and isinstance(value, (str, int, float)):
+            text = str(value).strip()
+            if text:
+                return text
+    return None
+
+
 def extract_identity(
-    system_info: Mapping[str, Any], fallback_host: str
+    system_info: Mapping[str, Any],
+    fallback_host: str,
+    features: Mapping[str, Any] | None = None,
 ) -> BuffaloIdentity:
     """Extract identity values without assuming a single firmware response shape."""
     # The UI presents the optional minor/build field separately. The major field
     # is the marketed firmware version used by Buffalo (for example, 1.88).
-    firmware = _find_value(system_info, ("fw_version_major",))
+    firmware = _find_direct_value(system_info, ("fw_version_major",))
+    model = _find_direct_value(system_info, ("model", "model_name", "product_name"))
+    if model is None and features is not None:
+        model = _find_direct_value(features, ("PRODUCT_NAME",))
+    if model is None:
+        # Some older response fixtures wrap identity in a single device object.
+        # Exclude nested product_name here because disk records use that key too.
+        model = _find_value(system_info, ("model", "model_name"))
     return BuffaloIdentity(
         hostname=_find_value(system_info, ("hostname", "host_name", "nas_name"))
         or fallback_host,
-        model=_find_value(system_info, ("model", "model_name", "product_name")),
+        model=model,
         firmware=firmware
         or _find_value(
             system_info, ("firmware", "firmware_version", "version", "fw_version")

@@ -109,6 +109,13 @@ while authenticated `System.shutdown` works on both devices. The integration
 therefore uses the hardware-verified model/firmware allowlist for defaults and
 never uses that flag to enable or disable the shutdown API.
 
+The captures also confirm feature-level product strings `LS220D(SANJO)` and
+`LS420D(LS-WM)`, while the portal reports `LS220D` and `LS420D`. Firmware is
+reported as separate major and minor/build fields (`1.86`/`0.07` and
+`1.88`/`0.03`) and displayed by the Web UI with a hyphen. Capability matching
+normalizes only these confirmed aliases and full version forms. It does not
+use prefix matching, discard unknown build suffixes, or enable other models.
+
 ## Adding hardware evidence
 
 Capture response *shape* with values sanitized. Remove passwords, cookies,

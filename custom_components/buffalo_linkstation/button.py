@@ -18,6 +18,8 @@ from .const import (
     CONF_ENABLE_REBOOT,
     CONF_ENABLE_SHUTDOWN,
     is_verified_shutdown,
+    normalize_firmware,
+    normalize_model,
 )
 from .coordinator import BuffaloLinkStationCoordinator
 from .entity import BuffaloLinkStationEntity
@@ -79,14 +81,45 @@ class BuffaloLinkStationButton(BuffaloLinkStationEntity, ButtonEntity):
     @property
     def available(self) -> bool:
         """Expose controls only when the NAS is reachable and support is explicit."""
-        if not super().available or self.coordinator.control_lock.locked():
-            return False
-        if self.entity_description.key == "shutdown":
+        return self._availability_reason().startswith("available_")
+
+    def _availability_reason(self) -> str:
+        """Return a credential-free explanation of control availability."""
+        if not super().available:
+            reason = "coordinator_unavailable"
+        elif self.coordinator.control_lock.locked():
+            reason = "operation_in_progress"
+        elif self.entity_description.key == "shutdown":
             identity = self.coordinator.data.identity
-            return is_verified_shutdown(identity.model, identity.firmware) or bool(
-                self._entry.options.get(CONF_ENABLE_SHUTDOWN, False)
-            )
-        return bool(self._entry.options.get(CONF_ENABLE_REBOOT, False))
+            if is_verified_shutdown(identity.model, identity.firmware):
+                reason = "available_verified_model_firmware"
+            elif self._entry.options.get(CONF_ENABLE_SHUTDOWN, False):
+                reason = "available_explicit_opt_in"
+            elif identity.model is None or identity.firmware is None:
+                reason = "missing_model_or_firmware"
+            else:
+                reason = "unverified_model_or_firmware"
+        elif self._entry.options.get(CONF_ENABLE_REBOOT, False):
+            reason = "available_explicit_opt_in"
+        else:
+            reason = "reboot_opt_in_required"
+        return reason
+
+    @property
+    def extra_state_attributes(self) -> dict[str, str | None]:
+        """Expose only non-sensitive identity and availability diagnostics."""
+        identity = self.coordinator.data.identity
+        normalized_model = normalize_model(identity.model)
+        return {
+            "reported_model": identity.model,
+            "reported_firmware": identity.firmware,
+            "recognized_model": normalized_model,
+            "recognized_firmware": normalize_firmware(
+                identity.firmware,
+                normalized_model,
+            ),
+            "availability_reason": self._availability_reason(),
+        }
 
     async def async_press(self) -> None:
         """Execute one explicit operation without retrying ambiguous failures."""
