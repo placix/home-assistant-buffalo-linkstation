@@ -254,6 +254,50 @@ def test_power_options_change_only_availability_and_preserve_unique_ids(hass):
     enabled_coordinator.api.reboot.assert_not_awaited()
 
 
+def test_legacy_address_change_preserves_power_entity_unique_ids(hass):
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="host:original-address.local",
+        data={"host": "original-address.local", "protocol": "legacy_cgi"},
+        options={CONF_ENABLE_SHUTDOWN: True, CONF_ENABLE_REBOOT: True},
+    )
+    entry.add_to_hass(hass)
+    before_coordinator = make_coordinator(
+        hass,
+        entry,
+        model="LS-WVL(KOUGYOKU)",
+        firmware=None,
+    )
+    before = [
+        BuffaloLinkStationButton(entry, before_coordinator, description).unique_id
+        for description in BUTTONS
+    ]
+
+    hass.config_entries.async_update_entry(
+        entry,
+        data={"host": "new-address.local", "protocol": "legacy_cgi"},
+    )
+    after_coordinator = make_coordinator(
+        hass,
+        entry,
+        model="LS-WVL(KOUGYOKU)",
+        firmware=None,
+    )
+    after = [
+        BuffaloLinkStationButton(entry, after_coordinator, description).unique_id
+        for description in BUTTONS
+    ]
+
+    assert (
+        before
+        == after
+        == [
+            "host:original-address.local_shutdown",
+            "host:original-address.local_reboot",
+        ]
+    )
+
+
 async def test_reboot_request(hass):
     entry = MockConfigEntry(
         domain=DOMAIN,

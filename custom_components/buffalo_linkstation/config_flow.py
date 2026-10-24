@@ -201,6 +201,51 @@ def _error_key(err: Exception) -> str:
     return "cannot_connect"
 
 
+def _entry_device_id(entry: config_entries.ConfigEntry) -> str | None:
+    """Return the stable identity already assigned to a config entry."""
+    device_id = entry.data.get(CONF_DEVICE_ID, entry.unique_id)
+    return device_id if isinstance(device_id, str) and device_id else None
+
+
+def _entry_host(entry: config_entries.ConfigEntry) -> str | None:
+    """Return the entry's current normalized connection address."""
+    host = entry.data.get(CONF_HOST)
+    if not isinstance(host, str):
+        return None
+    try:
+        return normalize_host(host)
+    except ValueError:
+        return None
+
+
+def _entry_matches_candidate(
+    entry: config_entries.ConfigEntry,
+    result: ValidationResult,
+    host: str,
+) -> bool:
+    """Match a device by stable identity or its current connection address."""
+    return (
+        entry.unique_id == result.unique_id
+        or _entry_device_id(entry) == result.unique_id
+        or _entry_host(entry) == host
+    )
+
+
+def _result_matches_existing_entry(
+    entry: config_entries.ConfigEntry,
+    result: ValidationResult,
+) -> bool:
+    """Protect serial identities while keeping host-based identities stable."""
+    device_id = _entry_device_id(entry)
+    if device_id is None:
+        return True
+    if device_id.startswith("serial:"):
+        return result.unique_id == device_id
+    if device_id.startswith("host:"):
+        return result.protocol == entry.data.get(CONF_PROTOCOL, PROTOCOL_JSON_RPC)
+    return result.unique_id == device_id
+
+
 class BuffaloLinkStationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Configure a Buffalo LinkStation through the UI."""
 
@@ -220,6 +265,15 @@ class BuffaloLinkStationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except BuffaloLinkStationError as err:
                 errors["base"] = _error_key(err)
             else:
+                if any(
+                    _entry_matches_candidate(
+                        entry,
+                        result,
+                        user_input[CONF_HOST],
+                    )
+                    for entry in self.hass.config_entries.async_entries(DOMAIN)
+                ):
+                    return self.async_abort(reason="already_configured")
                 await self.async_set_unique_id(result.unique_id)
                 self._abort_if_unique_id_configured()
                 data = dict(user_input)
@@ -259,7 +313,7 @@ class BuffaloLinkStationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     else "invalid_host"
                 )
             else:
-                if result.unique_id != entry.data.get(CONF_DEVICE_ID, entry.unique_id):
+                if not _result_matches_existing_entry(entry, result):
                     errors["base"] = "wrong_device"
                 else:
                     merged[CONF_PROTOCOL] = result.protocol
@@ -295,31 +349,33 @@ class BuffaloLinkStationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except BuffaloLinkStationError as err:
                 errors["base"] = _error_key(err)
             else:
-                original_id = entry.data.get(CONF_DEVICE_ID, entry.unique_id)
-                if (
-                    original_id
-                    and original_id.startswith("serial:")
-                    and result.unique_id != original_id
-                ):
+                original_id = _entry_device_id(entry)
+                if not _result_matches_existing_entry(entry, result):
                     errors["base"] = "wrong_device"
                 elif any(
                     other.entry_id != entry.entry_id
-                    and other.unique_id == result.unique_id
+                    and _entry_matches_candidate(
+                        other,
+                        result,
+                        user_input[CONF_HOST],
+                    )
                     for other in self.hass.config_entries.async_entries(DOMAIN)
                 ):
                     errors["base"] = "already_configured"
                 else:
+                    stable_id = original_id or result.unique_id
                     data = dict(user_input)
-                    data[CONF_DEVICE_ID] = result.unique_id
+                    data[CONF_DEVICE_ID] = stable_id
                     data[CONF_PROTOCOL] = result.protocol
                     options = {
                         **entry.options,
                         CONF_UPDATE_INTERVAL: data.pop(CONF_UPDATE_INTERVAL),
                         CONF_TIMEOUT: data.pop(CONF_TIMEOUT),
                     }
-                    self.hass.config_entries.async_update_entry(
-                        entry, unique_id=result.unique_id, options=options
-                    )
+                    update: dict[str, Any] = {"options": options}
+                    if entry.unique_id is None:
+                        update["unique_id"] = stable_id
+                    self.hass.config_entries.async_update_entry(entry, **update)
                     return self.async_update_reload_and_abort(entry, data=data)
         return self.async_show_form(
             step_id="reconfigure",

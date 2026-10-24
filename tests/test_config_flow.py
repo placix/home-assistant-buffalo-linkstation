@@ -153,6 +153,8 @@ async def test_user_flow_stores_detected_legacy_protocol(hass):
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["data"][CONF_PROTOCOL] == PROTOCOL_LEGACY_CGI
+    assert result["data"][CONF_DEVICE_ID] == "host:nas.local"
+    assert result["result"].unique_id == "host:nas.local"
 
 
 async def test_invalid_credentials(hass):
@@ -213,6 +215,142 @@ async def test_multiple_devices_create_independent_entries(hass):
         "serial:abc123",
         "serial:xyz",
     }
+
+
+async def test_legacy_reconfigure_updates_host_without_changing_identity(hass):
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="host:old-nas.local",
+        data={
+            **INPUT,
+            CONF_HOST: "old-nas.local",
+            CONF_DEVICE_ID: "host:old-nas.local",
+            CONF_PROTOCOL: PROTOCOL_LEGACY_CGI,
+        },
+        options={CONF_ENABLE_SHUTDOWN: True, CONF_ENABLE_REBOOT: False},
+    )
+    entry.add_to_hass(hass)
+    result_identity = ValidationResult(
+        BuffaloIdentity(model="LS-WVL(KOUGYOKU)"),
+        "host:new-nas.local",
+        PROTOCOL_LEGACY_CGI,
+    )
+
+    with (
+        patch(
+            "custom_components.buffalo_linkstation.config_flow._async_validate",
+            return_value=result_identity,
+        ),
+        patch.object(
+            hass.config_entries,
+            "async_reload",
+            new=AsyncMock(return_value=True),
+        ) as reload_entry,
+    ):
+        initial = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={
+                "source": config_entries.SOURCE_RECONFIGURE,
+                "entry_id": entry.entry_id,
+            },
+        )
+        result = await hass.config_entries.flow.async_configure(
+            initial["flow_id"],
+            user_input={**INPUT, CONF_HOST: "new-nas.local"},
+        )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.unique_id == "host:old-nas.local"
+    assert entry.data[CONF_DEVICE_ID] == "host:old-nas.local"
+    assert entry.data[CONF_HOST] == "new-nas.local"
+    assert entry.data[CONF_PROTOCOL] == PROTOCOL_LEGACY_CGI
+    assert entry.options[CONF_ENABLE_SHUTDOWN] is True
+    assert entry.options[CONF_ENABLE_REBOOT] is False
+    reload_entry.assert_awaited_once_with(entry.entry_id)
+
+
+async def test_current_host_prevents_duplicate_after_legacy_reconfigure(hass):
+    existing = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="host:old-nas.local",
+        data={
+            **INPUT,
+            CONF_HOST: "new-nas.local",
+            CONF_DEVICE_ID: "host:old-nas.local",
+            CONF_PROTOCOL: PROTOCOL_LEGACY_CGI,
+        },
+    )
+    existing.add_to_hass(hass)
+    candidate = ValidationResult(
+        BuffaloIdentity(model="LS-WVL(KOUGYOKU)"),
+        "host:new-nas.local",
+        PROTOCOL_LEGACY_CGI,
+    )
+
+    with patch(
+        "custom_components.buffalo_linkstation.config_flow._async_validate",
+        return_value=candidate,
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": config_entries.SOURCE_USER},
+            data={**INPUT, CONF_HOST: "new-nas.local"},
+        )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    assert existing.unique_id == "host:old-nas.local"
+
+
+async def test_legacy_reauth_accepts_current_host_without_rewriting_identity(hass):
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="host:old-nas.local",
+        data={
+            **INPUT,
+            CONF_HOST: "new-nas.local",
+            CONF_DEVICE_ID: "host:old-nas.local",
+            CONF_PROTOCOL: PROTOCOL_LEGACY_CGI,
+        },
+    )
+    entry.add_to_hass(hass)
+    current = ValidationResult(
+        BuffaloIdentity(model="LS-WVL(KOUGYOKU)"),
+        "host:new-nas.local",
+        PROTOCOL_LEGACY_CGI,
+    )
+
+    with (
+        patch(
+            "custom_components.buffalo_linkstation.config_flow._async_validate",
+            return_value=current,
+        ),
+        patch.object(
+            hass.config_entries,
+            "async_reload",
+            new=AsyncMock(return_value=True),
+        ),
+    ):
+        initial = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={
+                "source": config_entries.SOURCE_REAUTH,
+                "entry_id": entry.entry_id,
+                "unique_id": entry.unique_id,
+            },
+            data=entry.data,
+        )
+        result = await hass.config_entries.flow.async_configure(
+            initial["flow_id"],
+            user_input={CONF_USERNAME: "admin", CONF_PASSWORD: "new-secret"},
+        )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    assert entry.unique_id == "host:old-nas.local"
+    assert entry.data[CONF_DEVICE_ID] == "host:old-nas.local"
+    assert entry.data[CONF_HOST] == "new-nas.local"
 
 
 async def _options_defaults(hass, *, model, firmware, options=None):

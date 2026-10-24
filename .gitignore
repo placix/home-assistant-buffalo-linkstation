@@ -6,3 +6,5 @@ __pycache__/
 .venv/
 htmlcov/
 reference/
+*.har
+buffalo-diagnostic-sanitized*.json

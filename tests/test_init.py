@@ -12,6 +12,7 @@ from custom_components.buffalo_linkstation import (
 )
 from custom_components.buffalo_linkstation.api import BuffaloLinkStationApi
 from custom_components.buffalo_linkstation.const import (
+    CONF_DEVICE_ID,
     CONF_PROTOCOL,
     DOMAIN,
     PLATFORMS,
@@ -59,6 +60,29 @@ async def test_version_one_entry_migrates_to_explicit_json_rpc_without_option_ch
     assert entry.options == original_options
 
 
+async def test_version_one_host_identity_migration_does_not_rewrite_unique_id(hass):
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="host:legacy-address.local",
+        data={
+            "host": "legacy-address.local",
+            "username": "admin",
+            "password": "secret",
+        },
+        options={"enable_shutdown": False},
+        version=1,
+    )
+    entry.add_to_hass(hass)
+
+    assert await async_migrate_entry(hass, entry)
+
+    assert entry.version == 2
+    assert entry.unique_id == "host:legacy-address.local"
+    assert entry.data[CONF_PROTOCOL] == PROTOCOL_JSON_RPC
+    assert CONF_DEVICE_ID not in entry.data
+    assert entry.options == {"enable_shutdown": False}
+
+
 async def test_client_factory_uses_stored_protocol_and_modern_default(
     hass,
 ):
@@ -83,3 +107,29 @@ async def test_client_factory_uses_stored_protocol_and_modern_default(
 
     assert isinstance(modern, BuffaloLinkStationApi)
     assert isinstance(legacy, LegacyLinkStationApi)
+
+
+async def test_legacy_reload_uses_new_host_and_preserves_stable_identity(hass):
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="host:original-address.local",
+        data={
+            "host": "new-address.local",
+            "username": "admin",
+            "password": "secret",
+            CONF_DEVICE_ID: "host:original-address.local",
+            CONF_PROTOCOL: PROTOCOL_LEGACY_CGI,
+        },
+    )
+    session = MagicMock()
+
+    with patch(
+        "homeassistant.helpers.aiohttp_client.async_get_clientsession",
+        return_value=session,
+    ):
+        api = create_api(hass, entry)
+
+    assert isinstance(api, LegacyLinkStationApi)
+    assert api.host == "new-address.local"
+    assert entry.unique_id == "host:original-address.local"
+    assert entry.data[CONF_DEVICE_ID] == "host:original-address.local"
