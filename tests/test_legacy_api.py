@@ -224,7 +224,7 @@ async def test_read_recovers_after_one_temporary_connection_failure():
 
 
 @pytest.mark.parametrize("method", ["shutdown", "reboot"])
-async def test_power_operations_use_confirmed_form_only_after_explicit_call(method):
+async def test_power_operations_use_hardware_verified_form_after_explicit_call(method):
     outcomes = hardware_outcomes()
     outcomes["shutRestartLS"] = envelope()
     session = FakeSession(outcomes)

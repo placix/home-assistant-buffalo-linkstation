@@ -37,7 +37,7 @@ numbers and use the explicit unit `KB (reported)`; they are not converted.
 | --- | --- | --- | --- | --- | --- |
 | LS220D | 1.86 | **Verified**: portal, features, disks, RAID1, health, and capacity | **Verified** | Hardware-tested; disabled by default | Sanitized read-only capture plus successful Home Assistant power-control testing |
 | LS420D | 1.88 | **Verified**: portal, features, disks, RAID0, health, and capacity | **Verified** | Hardware-tested; disabled by default | Sanitized read-only capture plus successful Home Assistant power-control testing |
-| LS-WVL | 1.75 | **Verified**: native login, session validation, storage, internal-disk membership, RAID1 mode/status | Firmware-derived; disabled by default and not hardware-tested | Firmware-derived; disabled by default and not hardware-tested | Sanitized read-only CGI capture plus successful native-login testing |
+| LS-WVL | 1.75 | **Verified**: native login, session validation, storage, internal-disk membership, RAID1 mode/status | **Verified**; disabled by default | **Verified**; disabled by default | Sanitized read-only CGI capture plus successful Home Assistant power-control testing |
 | LS-WXL | Unknown | Not supported by this API client | Not tested | Not tested | Older third-party integration uses a different Python library |
 
 Other models are not assumed compatible. Please attach sanitized JSON response
@@ -45,7 +45,7 @@ shapes to a bug report before adding a model to this table. Never test support
 by sending a shutdown command during discovery.
 
 The compatibility table records firmware/API behavior and sanitized hardware
-responses. The modern power-control entries identify specific operations that
+responses. The power-control entries identify specific operations that
 were exercised successfully through Home Assistant on the listed hardware;
 they do not constitute comprehensive end-to-end validation of every entity,
 reload, recovery, or automation scenario. Home Assistant-specific automated
@@ -83,7 +83,18 @@ generic labels. Arbitrary method names from a capture are never published.
 
 ## Installation
 
-### HACS custom repository
+### HACS
+
+After this integration has been accepted into the default HACS repository:
+
+1. In HACS, open **Integrations**, select **Explore & download repositories**,
+   and search for **Buffalo LinkStation**.
+2. Select the integration, choose **Download**, and restart Home Assistant.
+3. Open **Settings → Devices & services → Add integration**, search for
+   **Buffalo LinkStation**, and enter the NAS hostname/IP, username, and
+   password.
+
+Until the HACS listing is accepted, install it as a custom repository:
 
 1. In HACS, open **Integrations**, then the menu and **Custom repositories**.
 2. Add `https://github.com/placix/home-assistant-buffalo-linkstation` as an
@@ -132,11 +143,11 @@ invocation was present in the supplied firmware JavaScript, so the Web UI
 feature flag is not used for availability. Both controls can be changed under
 the integration's **Configure** options.
 
-For LS-WVL, both controls default to disabled. The implemented form requests
-(`shutRestartLS` with `action=shutdown` or `action=reboot`) are confirmed from
-firmware source only and have not been hardware-tested. Enabling either option
-does not probe or execute it; an operation is sent only after the corresponding
-button is explicitly pressed.
+For LS-WVL firmware 1.75, both controls default to disabled. The exact form
+requests (`shutRestartLS` with `action=shutdown` or `action=reboot`) have been
+successfully tested through Home Assistant on real hardware. Enabling either
+option does not probe or execute it; an operation is sent only after the
+corresponding button is explicitly pressed.
 
 Power operations occur only after a button press or a standard Home Assistant
 `button.press` action. Operations are serialized. A timeout is never retried,
@@ -239,8 +250,9 @@ storage. Session IDs remain in memory only.
 - LS-WVL does not expose confirmed firmware, CPU, fan, SMART, or system-error
   fields through the implemented read actions. Those entities are not created,
   and firmware 1.75 remains operator-supplied compatibility metadata.
-- LS-WVL session login and read-only monitoring are hardware-verified, but its
-  shutdown and reboot operations remain source-derived and unverified.
+- LS-WVL session login, read-only monitoring, shutdown, and reboot are
+  hardware-verified on firmware 1.75. Both power controls remain disabled by
+  default and are only executed after an explicit button press.
 
 ## Manual hardware test checklist
 
@@ -262,8 +274,8 @@ Perform read-only checks first on each LS220D (1.86) and LS420D (1.88):
 9. Restart is already hardware-tested for the listed LS220D 1.86 and LS420D
    1.88 combinations, but repeat it only during an approved maintenance window.
    Do not test it on another model or firmware until its method and parameters
-   are independently confirmed for that exact combination. LS-WVL restart
-   remains firmware-derived and must not be treated as hardware-verified.
+   are independently confirmed for that exact combination. LS-WVL firmware
+   1.75 is one of the hardware-verified combinations.
 10. During a separate approved maintenance window with storage idle and a
     backup available, press **Shut down** once and confirm a clean shutdown.
     Do not treat connection loss alone as proof.

@@ -299,9 +299,11 @@ disconnected USB placeholder is excluded from internal-disk health. It does not
 create firmware, CPU, fan, SMART, or system-error values that these actions do
 not provide.
 
-LS-WVL shutdown and reboot remain disabled by default. Their request forms are
-implemented from firmware evidence but are not hardware-verified. Detection,
-setup and polling never call them.
+LS-WVL shutdown and reboot remain disabled by default. Their exact request
+forms were first established from firmware evidence and were subsequently
+tested successfully through Home Assistant on real LS-WVL firmware 1.75
+hardware on November 2, 2026. Detection, setup and polling never call them;
+each operation remains an explicit button action.
 
 ## Hardware-verified results
 

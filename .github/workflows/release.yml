@@ -1,4 +1,4 @@
-name: Release
+name: Release tag validation
 
 on:
   push:
@@ -6,32 +6,24 @@ on:
       - "v*"
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  release:
+  validate-tag:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
       - name: Run privacy check
         run: python3 tools/check_privacy.py
-      - name: Create GitHub release draft
+      - name: Verify tag and project versions
         env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          release_args=(
-            "$GITHUB_REF_NAME"
-            --repo "$GITHUB_REPOSITORY"
-            --verify-tag
-            --generate-notes
-            --draft
-            --title "$GITHUB_REF_NAME"
-          )
-
-          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
-            release_args+=(--prerelease)
-          fi
-
-          gh release create "${release_args[@]}"
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: >-
+          python3 -c "import json, os, pathlib, tomllib;
+          root = pathlib.Path('.');
+          expected = os.environ['RELEASE_TAG'].removeprefix('v');
+          manifest = json.loads((root / 'custom_components/buffalo_linkstation/manifest.json').read_text())['version'];
+          project = tomllib.loads((root / 'pyproject.toml').read_text())['project']['version'];
+          assert manifest == project == expected,
+          f'tag={expected}, manifest={manifest}, project={project}'"

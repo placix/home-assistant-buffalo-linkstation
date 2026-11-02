@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.1] - 2026-11-02
+
+### Changed
+
+- Documented successful LS-WVL firmware 1.75 shutdown and reboot testing
+  through Home Assistant using the exact legacy CGI request forms.
+- Clarified the HACS installation path before and after acceptance into the
+  default HACS repository.
+
 ## [0.3.0] - 2026-10-24
 
 ### Added
@@ -32,6 +41,7 @@
 
 - Initial pre-release with LS220D and LS420D JSON-RPC monitoring and controls.
 
+[0.3.1]: https://github.com/placix/home-assistant-buffalo-linkstation/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/placix/home-assistant-buffalo-linkstation/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/placix/home-assistant-buffalo-linkstation/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/placix/home-assistant-buffalo-linkstation/compare/v0.1.0...v0.1.1

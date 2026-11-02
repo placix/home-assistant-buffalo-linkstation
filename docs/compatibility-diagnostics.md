@@ -17,10 +17,11 @@ The integration currently has hardware evidence for:
 | --- | --- | --- |
 | LS220D | 1.86 | Modern JSON-RPC monitoring and shutdown |
 | LS420D | 1.88 | Modern JSON-RPC monitoring and shutdown |
-| LS-WVL | 1.75 | Legacy CGI login, session validation, and read-only monitoring |
+| LS-WVL | 1.75 | Legacy CGI login, monitoring, shutdown, and reboot |
 
-LS-WVL shutdown and reboot are derived from firmware source but are not
-hardware-verified. Models outside this table are not advertised as supported.
+LS-WVL shutdown and reboot are hardware-verified on firmware 1.75 but remain
+excluded from compatibility capture workflows because diagnostics must be
+strictly read-only. Models outside this table are not advertised as supported.
 Buffalo product families can share a similar Web UI while using different
 authentication rules, endpoints, parameters, response fields, or units.
 

@@ -10,8 +10,9 @@ The following labels are used throughout:
 
 - **Source-confirmed**: directly shown by a collected firmware JavaScript or HTML
   file.
-- **Hardware-confirmed**: observed in the sanitized read-only capture from an
-  LS-WVL reported by the operator as running firmware 1.75.
+- **Hardware-confirmed**: observed in the sanitized read-only capture or in an
+  explicit Home Assistant operation on an LS-WVL reported by the operator as
+  running firmware 1.75.
 - **Inferred**: a likely consequence of the source, but not completely defined by
   the available files.
 - **Unknown**: the collection does not establish the behavior.
@@ -61,8 +62,9 @@ field.
 
 The observed Web UI feature values include
 `SUPPORT_SHUTDOWN_FROMWEB=0` and `SUPPORT_REBOOT_FROMWEB=1`. As with the modern
-devices, these are UI feature observations rather than proof that either power
-operation succeeds. No LS-WVL power operation was executed.
+devices, these flags are not authoritative capability indicators. Both exact
+power requests were subsequently tested successfully through Home Assistant on
+real LS-WVL firmware 1.75 hardware on November 2, 2026.
 
 ### Hardware-confirmed storage and RAID
 
@@ -397,8 +399,8 @@ Evidence: `static/menus/system/maintenance/system_maint_vars.js:22-30` and
 
 The root UI exposes these panels only when the corresponding feature flags are
 enabled (`static/root/root.js:143`, `171`; `system_maint_main.js:219-235`). This
-is **source-confirmed UI behavior**, not hardware confirmation. Shutdown and
-reboot remain unverified on LS-WVL firmware 1.75.
+is **source-confirmed UI behavior**. The exact shutdown and reboot requests are
+also **hardware-confirmed** through Home Assistant on LS-WVL firmware 1.75.
 
 ## Difference from the LS220D/LS420D API
 
@@ -413,7 +415,7 @@ reboot remain unverified on LS-WVL firmware 1.75.
 | Response | JSON `success`/`errors`/`data` envelope | JSON-RPC `result` or `error` |
 | Disk/RAID API | `getDiskAllList`, `getArrayList` | `device.getlist` plus modern portal data |
 | Power operation | `shutRestartLS` plus an `action` field | `System.shutdown` / `System.reboot` |
-| Hardware validation | Complete read-only capture; power operations not tested | LS220D 1.86 and LS420D 1.88 captures/operation results documented elsewhere |
+| Hardware validation | Complete read-only capture; shutdown and reboot tested through Home Assistant | LS220D 1.86 and LS420D 1.88 captures/operation results documented elsewhere |
 
 Similar concepts do not imply identical field semantics. The legacy API returns
 storage as comma-separated strings, sometimes with a `KB` suffix and sometimes
@@ -615,6 +617,6 @@ induced on production hardware.
   uncollected status/statistics action?
 - Does the device expose a stable non-sensitive identifier suitable for config
   entry identity?
-- Do shutdown and reboot work on LS-WVL hardware? The observed feature values
-  are shutdown `0` and reboot `1`, but source presence and UI flags cannot answer
-  whether either backend operation succeeds.
+- Which additional LS-WVL firmware versions support the same shutdown and
+  reboot requests? Firmware 1.75 is hardware-confirmed, but the observed feature
+  values alone cannot establish compatibility for another firmware release.

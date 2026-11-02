@@ -169,6 +169,7 @@ def test_ls_wvl_power_controls_default_disabled_and_can_be_explicitly_enabled(ha
     disabled_entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id="host:legacy.local",
+        data={"protocol": "legacy_cgi"},
     )
     disabled_coordinator = make_coordinator(
         hass,
@@ -186,6 +187,7 @@ def test_ls_wvl_power_controls_default_disabled_and_can_be_explicitly_enabled(ha
     enabled_entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id="host:legacy.local",
+        data={"protocol": "legacy_cgi"},
         options={CONF_ENABLE_SHUTDOWN: True, CONF_ENABLE_REBOOT: True},
     )
     enabled_coordinator = make_coordinator(
@@ -205,6 +207,34 @@ def test_ls_wvl_power_controls_default_disabled_and_can_be_explicitly_enabled(ha
     ]
     enabled_coordinator.api.shutdown.assert_not_awaited()
     enabled_coordinator.api.reboot.assert_not_awaited()
+
+
+async def test_hardware_verified_legacy_entry_registers_both_power_entities(hass):
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="host:legacy.local",
+        data={"protocol": "legacy_cgi"},
+        options={CONF_ENABLE_SHUTDOWN: False, CONF_ENABLE_REBOOT: False},
+    )
+    coordinator = make_coordinator(
+        hass,
+        entry,
+        model="LS-WVL(KOUGYOKU)",
+        firmware=None,
+    )
+    entry.runtime_data = MagicMock(coordinator=coordinator)
+    add_entities = MagicMock()
+
+    await async_setup_entry(hass, entry, add_entities)
+
+    entities = list(add_entities.call_args.args[0])
+    assert [entity.entity_description.key for entity in entities] == [
+        "shutdown",
+        "reboot",
+    ]
+    assert not any(entity.available for entity in entities)
+    coordinator.api.shutdown.assert_not_awaited()
+    coordinator.api.reboot.assert_not_awaited()
 
 
 def test_explicit_shutdown_disable_overrides_verified_default(hass):
