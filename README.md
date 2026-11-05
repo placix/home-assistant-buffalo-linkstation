@@ -1,35 +1,55 @@
 # Buffalo LinkStation for Home Assistant
 
-Local monitoring and explicit power controls for compatible Buffalo LinkStation
-NAS devices through the modern JSON-RPC or legacy CGI interface. No Buffalo
-cloud service is used.
+Local monitoring and explicit power controls for compatible Buffalo LinkStation NAS devices through the modern JSON-RPC or legacy CGI interface.
 
-This is an early, model-conscious integration. Buffalo firmware responses vary,
-so an entity is created only when its source field is present. It never probes
-power controls during discovery or polling.
+**No Buffalo cloud service is used.**
+
+The integration is model-conscious: Buffalo firmware responses vary between devices and firmware generations, so entities are created only when their corresponding source fields are actually available. Power controls are never probed during discovery or normal polling.
 
 ## Features
 
-- UI configuration and one independent config entry per NAS
-- Safe automatic selection between `/nasapi/` JSON-RPC and `/dynamic.pl`
-  legacy CGI during initial configuration
-- Automatic login, in-memory session handling, reauthentication after an
-  explicit session rejection, request timeouts, and sanitized logs
-- Coordinator polling with recovery after temporary network failures
-- Device registry metadata: model, hostname, firmware, serial number, and URL
-- Firmware, CPU, system message/error, disk/RAID status, and storage capacity
-  and utilization sensors when the corresponding fields are returned
-- Reachability, system-error, and RAID-problem binary sensors when supported
-- Serialized shutdown and restart buttons for Home Assistant automations
-- Configurable polling interval, timeout, and explicit power-control settings
+- UI-based configuration with one independent Home Assistant config entry per NAS
+- Safe automatic detection of the supported API:
+  - modern `/nasapi/` JSON-RPC
+  - legacy `/dynamic.pl` CGI
+- Automatic login and in-memory session handling
+- Automatic reauthentication after an explicit session rejection
+- Configurable request timeout and polling interval
+- Coordinator-based polling with recovery after temporary network failures
+- Device Registry information:
+  - model
+  - hostname
+  - firmware
+  - serial number
+  - configuration URL
+- Monitoring entities for supported devices:
+  - firmware
+  - CPU
+  - system messages and errors
+  - disk status
+  - RAID status
+  - storage capacity and utilization
+- Binary sensors for:
+  - reachability
+  - system errors
+  - RAID problems
+- Serialized shutdown and restart buttons suitable for Home Assistant automations
+- Explicit safety controls for shutdown and restart operations
 - English and German translations
 
-The modern Web UI treats portal `used_size` and `total_size` values as KiB:
-it divides each by 1024 twice before presenting a capacity. The integration
-therefore exposes converted GiB and derives aggregate utilization from those
-same raw totals. LS-WVL reports strings labelled `KB`, but the byte basis of
-that label is not verified. Its used and total sensors therefore retain the raw
-numbers and use the explicit unit `KB (reported)`; they are not converted.
+### Storage units
+
+The modern Buffalo Web UI treats portal `used_size` and `total_size` values as KiB and divides each value by 1024 twice before presenting storage capacity.
+
+The integration therefore exposes these values as converted GiB and derives aggregate utilization from the same raw totals.
+
+The LS-WVL behaves differently. It reports strings labelled `KB`, but the actual byte basis of that label has not been verified. For this reason, LS-WVL used and total storage sensors preserve the original values and expose the explicit unit:
+
+```text
+KB (reported)
+```
+
+No conversion is performed for these values.
 
 ## Compatibility
 
@@ -40,179 +60,326 @@ numbers and use the explicit unit `KB (reported)`; they are not converted.
 | LS-WVL | 1.75 | **Verified**: native login, session validation, storage, internal-disk membership, RAID1 mode/status | **Verified**; disabled by default | **Verified**; disabled by default | Sanitized read-only CGI capture plus successful Home Assistant power-control testing |
 | LS-WXL | Unknown | Not supported by this API client | Not tested | Not tested | Older third-party integration uses a different Python library |
 
-Other models are not assumed compatible. Please attach sanitized JSON response
-shapes to a bug report before adding a model to this table. Never test support
-by sending a shutdown command during discovery.
+Other models must not be assumed compatible.
 
-The compatibility table records firmware/API behavior and sanitized hardware
-responses. The power-control entries identify specific operations that
-were exercised successfully through Home Assistant on the listed hardware;
-they do not constitute comprehensive end-to-end validation of every entity,
-reload, recovery, or automation scenario. Home Assistant-specific automated
-tests run in Linux CI, while broader live integration testing remains part of
-the pre-release evaluation.
+Please provide sanitized response information through a compatibility request before a new model is added to this table. Support must never be tested by sending shutdown or restart commands during discovery.
+
+The compatibility table documents firmware/API behavior and sanitized hardware responses. Power-control entries indicate operations that have been exercised successfully through Home Assistant on the listed hardware.
+
+They do **not** represent comprehensive end-to-end validation of every entity, reload, recovery scenario, or automation.
+
+Home Assistant-specific automated tests run in Linux CI. Broader live integration testing remains part of pre-release evaluation.
 
 ## Request support for another Buffalo model
 
-LS441D, LS520D, LS720D, CloudStation CS-WV, and other models not listed as
-verified above are currently unsupported. Their Web UIs may use different
-endpoints, authentication, parameters, or response formats, so compatibility
-cannot be inferred from a similar product name.
+Models such as the following are currently unsupported unless listed as verified above:
 
-Users can help investigate an additional model by opening a compatibility
-request with:
+- LS441D
+- LS520D
+- LS720D
+- CloudStation CS-WV
+- other unverified Buffalo NAS models
 
-- the exact NAS model and firmware version;
-- the Home Assistant and Buffalo LinkStation integration versions;
-- the installation or connection error, if applicable;
-- relevant troubleshooting results; and
-- a carefully reviewed diagnostic JSON generated by `tools/sanitize_har.py`.
+Different models and firmware generations may use different endpoints, authentication mechanisms, parameters, or response formats. Compatibility therefore cannot be inferred from a similar product name.
 
-Follow the [compatibility diagnostics guide](docs/compatibility-diagnostics.md)
-before attaching anything. **Never attach an original HAR file, cookie,
-password, session identifier, or unredacted network capture.** The sanitizer
-runs locally and never uploads data, but its output still requires manual
-review. A diagnostic report helps investigation; it does not guarantee that a
-model can or will be supported.
+To help investigate another model, open a compatibility request and include:
 
-The generated diagnostic excludes static Web UI resources and unrelated web
-requests by default. It preserves exact API names only for read-only methods
-confirmed by Buffalo firmware references or the integration, summarizes skipped
-entry categories, and replaces authentication or state-changing operations with
-generic labels. Arbitrary method names from a capture are never published.
+- exact NAS model
+- firmware version
+- Home Assistant version
+- Buffalo LinkStation integration version
+- installation or connection error, if applicable
+- relevant troubleshooting results
+- a carefully reviewed diagnostic JSON generated by `tools/sanitize_har.py`
+
+Before attaching diagnostics, follow the [compatibility diagnostics guide](docs/compatibility-diagnostics.md).
+
+> [!WARNING]
+> Never attach an original HAR file, password, cookie, session identifier, or unredacted network capture.
+
+The sanitizer runs locally and never uploads information automatically. Its output must still be reviewed manually before sharing.
+
+A diagnostic report helps with investigation but does not guarantee that a model can or will be supported.
+
+The generated diagnostic excludes static Web UI resources and unrelated requests by default. It preserves exact API names only for read-only methods that are already confirmed by Buffalo firmware references or by this integration.
+
+Authentication and state-changing operations are replaced with generic labels. Arbitrary method names discovered inside captures are never published.
 
 ## Installation
 
 ### HACS
 
-After this integration has been accepted into the default HACS repository:
+**Buffalo LinkStation is available directly in HACS.**
 
-1. In HACS, open **Integrations**, select **Explore & download repositories**,
-   and search for **Buffalo LinkStation**.
-2. Select the integration, choose **Download**, and restart Home Assistant.
-3. Open **Settings → Devices & services → Add integration**, search for
-   **Buffalo LinkStation**, and enter the NAS hostname/IP, username, and
-   password.
+1. Open **HACS → Integrations**.
+2. Select **Explore & download repositories**.
+3. Search for **Buffalo LinkStation**.
+4. Select the integration and choose **Download**.
+5. Restart Home Assistant.
+6. Open **Settings → Devices & services → Add integration**.
+7. Search for **Buffalo LinkStation**.
+8. Enter the NAS hostname or IP address, username, and password.
 
-Until the HACS listing is accepted, install it as a custom repository:
+### Manual installation
 
-1. In HACS, open **Integrations**, then the menu and **Custom repositories**.
-2. Add `https://github.com/placix/home-assistant-buffalo-linkstation` as an
-   **Integration** repository.
-3. Download **Buffalo LinkStation** and restart Home Assistant.
-4. Open **Settings → Devices & services → Add integration**, search for
-   **Buffalo LinkStation**, and enter the NAS hostname/IP, username, and
-   password.
+1. Copy:
 
-For manual installation, copy `custom_components/buffalo_linkstation` into Home
-Assistant's `config/custom_components/` directory and restart Home Assistant.
+   ```text
+   custom_components/buffalo_linkstation
+   ```
 
-Use a DHCP reservation or stable hostname. The integration safely detects and
-stores either `http://<host>/nasapi/` or `http://<host>/dynamic.pl` during
-configuration; credentials are never put into the URL.
+   into:
+
+   ```text
+   config/custom_components/buffalo_linkstation
+   ```
+
+2. Restart Home Assistant.
+3. Open **Settings → Devices & services → Add integration**.
+4. Search for **Buffalo LinkStation**.
+5. Enter the NAS hostname or IP address, username, and password.
+
+### Network configuration
+
+Use a DHCP reservation or a stable hostname for the NAS.
+
+During configuration, the integration safely detects and stores the appropriate endpoint:
+
+```text
+http://<host>/nasapi/
+```
+
+or:
+
+```text
+http://<host>/dynamic.pl
+```
+
+Credentials are never included in the URL.
 
 ## Entities and controls
 
-The integration creates only sensors backed by fields actually returned by the
-device. Missing fields are normal and do not fail setup. A failed update makes
-coordinator entities unavailable, so old measurements are not presented as
-current. In particular, an unreachable NAS is **unavailable**, not "powered
-off"; loss of network connectivity does not prove a clean shutdown.
+The integration creates only entities backed by fields actually returned by the NAS.
 
-Shutdown and restart button entities are always registered, with stable unique
-IDs, for every configured LinkStation. Their options control availability; they
-do not add or remove entities. An enabled button is available while the NAS is
-reachable and no other power operation is running. A disabled button remains
-registered but unavailable.
+Missing fields are considered normal and do not cause setup to fail.
 
-For a new entry, shutdown defaults to enabled on the two hardware-verified
-model/firmware combinations (LS220D 1.86 and LS420D 1.88) and disabled on other
-combinations. An explicit **Enable shutdown** value always wins, including an
-explicitly disabled value on verified hardware. Restart defaults to disabled
-and is controlled by **Enable reboot**. Existing explicit values are preserved.
+If an update fails, coordinator entities become unavailable so that stale measurements are not presented as current values.
 
-`SUPPORT_SHUTDOWN_FROMWEB` is deliberately not used to decide API capability:
-both completed hardware captures report
-`SUPPORT_SHUTDOWN_FROMWEB = 0`, yet authenticated `System.shutdown` was
-successfully tested on both devices. The flag describes Web UI behavior and is
-not an authoritative statement about whether the underlying JSON-RPC method works.
-It is also never used as permission to enable shutdown by default on an
-unverified model. Although restart has now been exercised through Home
-Assistant on real hardware, it remains disabled by default. No `System.reboot`
-invocation was present in the supplied firmware JavaScript, so the Web UI
-feature flag is not used for availability. Both controls can be changed under
-the integration's **Configure** options.
+In particular, an unreachable NAS is reported as **unavailable**, not as powered off. Network connectivity loss does not prove that a clean shutdown occurred.
 
-For LS-WVL firmware 1.75, both controls default to disabled. The exact form
-requests (`shutRestartLS` with `action=shutdown` or `action=reboot`) have been
-successfully tested through Home Assistant on real hardware. Enabling either
-option does not probe or execute it; an operation is sent only after the
-corresponding button is explicitly pressed.
+### Shutdown and restart
 
-Power operations occur only after a button press or a standard Home Assistant
-`button.press` action. Operations are serialized. A timeout is never retried,
-because the NAS may already have accepted the command.
+Shutdown and restart button entities are always registered with stable unique IDs for every configured LinkStation.
+
+Their configuration options control availability; enabling or disabling a power control does not create or remove the entity.
+
+An enabled power-control button is available while:
+
+- the NAS is reachable; and
+- no other power operation is currently running.
+
+A disabled button remains registered but unavailable.
+
+### Default shutdown behavior
+
+For a new config entry, shutdown defaults to enabled only for these hardware-verified combinations:
+
+- LS220D firmware 1.86
+- LS420D firmware 1.88
+
+Shutdown defaults to disabled for other combinations.
+
+An explicitly configured **Enable shutdown** value always takes precedence, including an explicitly disabled value on verified hardware.
+
+Restart defaults to disabled and is controlled independently through **Enable reboot**.
+
+Existing explicit configuration values are preserved.
+
+### `SUPPORT_SHUTDOWN_FROMWEB`
+
+`SUPPORT_SHUTDOWN_FROMWEB` is deliberately not used to determine API capability.
+
+Both completed hardware captures for the modern API report:
+
+```text
+SUPPORT_SHUTDOWN_FROMWEB = 0
+```
+
+However, authenticated `System.shutdown` calls have been successfully tested on both verified devices.
+
+The flag therefore describes Buffalo Web UI behavior and is not authoritative evidence of whether the underlying JSON-RPC method is available.
+
+It is also never treated as permission to enable shutdown automatically on an unverified model.
+
+Although restart has been successfully exercised through Home Assistant on real hardware, it remains disabled by default.
+
+No `System.reboot` invocation was found in the supplied firmware JavaScript, so Web UI feature flags are not used to determine restart availability.
+
+Both controls can be configured under the integration's **Configure** options.
+
+### LS-WVL power controls
+
+For LS-WVL firmware 1.75, both shutdown and restart default to disabled.
+
+The exact legacy CGI requests:
+
+```text
+shutRestartLS?action=shutdown
+```
+
+and:
+
+```text
+shutRestartLS?action=reboot
+```
+
+have been successfully tested through Home Assistant on real hardware.
+
+Enabling either option does not probe or execute a power operation.
+
+A command is sent only when the corresponding Home Assistant button is explicitly pressed.
+
+### Power-operation safety
+
+Power operations occur only after:
+
+- an explicit button press; or
+- a standard Home Assistant `button.press` action.
+
+Power operations are serialized.
+
+A timeout is **never retried automatically**, because the NAS may already have accepted the command before connectivity was lost.
 
 ## UPS automation example
 
-Home Assistant's NUT integration should monitor the UPS. This integration only
-provides the standard NAS shutdown button. The example waits, confirms the UPS
-is still on battery, and uses an input boolean to request shutdown once per
-outage. Create `input_boolean.linkstation_shutdown_requested` first and replace
-the entity IDs.
+Home Assistant's NUT integration should monitor the UPS.
+
+This integration only provides the NAS shutdown button.
+
+The following example waits for an extended outage, confirms that the UPS is still running on battery, and uses an input boolean to ensure that shutdown is requested only once per outage.
+
+Create:
+
+```text
+input_boolean.linkstation_shutdown_requested
+```
+
+first, and replace the example entity IDs with your own.
 
 ```yaml
 alias: Shut down LinkStations during an extended outage
 mode: single
+
 triggers:
   - trigger: state
     entity_id: sensor.ups_status
     to: "OB"
+
 actions:
   - delay: "00:05:00"
+
   - condition: state
     entity_id: sensor.ups_status
     state: "OB"
+
   - condition: state
     entity_id: input_boolean.linkstation_shutdown_requested
     state: "off"
+
   - action: input_boolean.turn_on
     target:
       entity_id: input_boolean.linkstation_shutdown_requested
+
   - action: button.press
     target:
       entity_id:
         - button.office_nas_shut_down
         - button.backup_nas_shut_down
+
   - action: notify.notify
     data:
       message: "LinkStation shutdown requested because the UPS remained on battery."
 ```
 
-Reset the helper in a separate automation only after mains power has been
-stable long enough for the outage to be considered over. Do not automatically
-restart a NAS when power returns: mains may return without the UPS output being
-power-cycled, and LinkStation wake behavior depends on its own power settings.
+Reset the helper through a separate automation only after mains power has remained stable long enough for the outage to be considered over.
+
+Do not automatically restart a NAS merely because mains power has returned. Power may return without the UPS output being power-cycled, and LinkStation wake behavior depends on the NAS's own power settings.
 
 ## Troubleshooting
 
-- Confirm Home Assistant can reach the NAS Web UI on the LAN. Modern devices
-  use `/nasapi/`; LS-WVL uses `/dynamic.pl`.
-- Confirm the NAS web interface accepts the same credentials.
-- Increase the timeout under **Configure** on a slow or busy NAS.
-- For a shutdown button that is unexpectedly unavailable, open
-  **Developer Tools → States** and inspect only that button's diagnostic
-  attributes. `reported_model` and `reported_firmware` show the API identity;
-  `recognized_model` and `recognized_firmware` show the safety-normalized
-  values. `availability_reason` distinguishes an unavailable coordinator, a
-  running power operation, missing identity fields, and an unverified pair.
-  These attributes never include credentials, session IDs, hostnames, network
-  addresses, serial numbers, or response bodies.
-- If entities are missing, the firmware likely did not return their known
-  fields. Enable debug logging, reproduce one update, and share only sanitized
-  field names/types—not response values that could identify your device.
-- After a firmware update, reauthenticate if Home Assistant reports an
-  authentication repair.
+### NAS cannot be reached
+
+Confirm that Home Assistant can access the NAS Web UI over the local network.
+
+Modern devices use:
+
+```text
+/nasapi/
+```
+
+LS-WVL uses:
+
+```text
+/dynamic.pl
+```
+
+Also confirm that the same username and password work in the Buffalo Web UI.
+
+### Slow or busy NAS
+
+Increase the timeout under the integration's **Configure** options.
+
+### Shutdown button is unavailable
+
+Open:
+
+**Developer Tools → States**
+
+and inspect the affected shutdown button.
+
+Relevant diagnostic attributes include:
+
+- `reported_model`
+- `reported_firmware`
+- `recognized_model`
+- `recognized_firmware`
+- `availability_reason`
+
+`reported_model` and `reported_firmware` show the identity returned by the API.
+
+`recognized_model` and `recognized_firmware` show the safety-normalized values used by the integration.
+
+`availability_reason` distinguishes conditions such as:
+
+- unavailable coordinator
+- power operation already in progress
+- missing identity fields
+- unverified model/firmware combination
+
+These diagnostic attributes never include:
+
+- credentials
+- session IDs
+- hostnames
+- IP addresses
+- serial numbers
+- API response bodies
+
+### Missing entities
+
+If an entity is missing, the device firmware probably did not return the corresponding known field.
+
+Enable debug logging, reproduce one update, and share only sanitized field names and types.
+
+Do not share response values that could identify the NAS.
+
+### Authentication problems after a firmware update
+
+If Home Assistant reports an authentication repair after a firmware update, complete the reauthentication flow.
+
+### Debug logging
+
+Add:
 
 ```yaml
 logger:
@@ -220,78 +387,95 @@ logger:
     custom_components.buffalo_linkstation: debug
 ```
 
-The integration never logs passwords, request parameters, session IDs, cookies,
-or response bodies.
+The integration never logs:
+
+- passwords
+- request parameters
+- session IDs
+- cookies
+- response bodies
 
 ## Security
 
-Many older Buffalo firmwares expose this API over unencrypted HTTP. Use the
-integration only on a trusted local network, isolate untrusted clients, and use
-a dedicated NAS account if the firmware permits one with the required access.
-Never forward the NAS API or web-management port to the public internet.
+Many older Buffalo firmware versions expose their management API through unencrypted HTTP.
 
-Home Assistant stores config-entry credentials in its protected configuration
-storage. Session IDs remain in memory only.
+Use this integration only on a trusted local network.
+
+Recommended precautions:
+
+- isolate untrusted clients from the NAS management network;
+- use a dedicated NAS account if the firmware supports one with the required permissions;
+- never expose the NAS API or Web-management port directly to the public Internet.
+
+Home Assistant stores config-entry credentials in its protected configuration storage.
+
+Session IDs are retained in memory only.
 
 ## Known limitations
 
-- The implementation is covered by mocked response tests; no automated test
-  talks to real hardware or sends a real power command.
-- Sanitized local captures validate the healthy-state response structures for
-  all three models. They remain Git-ignored and are not distributed with the
-  integration, so CI skips capture-backed cases when those files are absent.
-- Degraded, rebuilding, missing-disk, non-empty system-message, and non-empty
-  system-error responses remain covered by synthetic tests rather than captured
-  hardware states.
-- HTTPS is not offered by the observed endpoint and certificate behavior has
-  not been established.
-- Shares are fetched to validate API/session behavior but are not exposed as
-  entities because names may be sensitive and are not health measurements.
-- LS-WVL does not expose confirmed firmware, CPU, fan, SMART, or system-error
-  fields through the implemented read actions. Those entities are not created,
-  and firmware 1.75 remains operator-supplied compatibility metadata.
-- LS-WVL session login, read-only monitoring, shutdown, and reboot are
-  hardware-verified on firmware 1.75. Both power controls remain disabled by
-  default and are only executed after an explicit button press.
+- The implementation is covered by mocked-response tests; automated tests do not communicate with real hardware or send real power commands.
+- Sanitized local captures validate healthy-state response structures for all three verified models.
+- Hardware captures remain Git-ignored and are not distributed with the integration, so CI skips capture-backed tests when those files are unavailable.
+- Degraded RAID states, rebuilding arrays, missing disks, non-empty system messages, and non-empty system errors remain covered by synthetic tests rather than captured hardware states.
+- HTTPS is not offered by the observed endpoint, and certificate behavior has not been established.
+- Shares are fetched to validate API and session behavior but are not exposed as entities because share names may contain sensitive information and are not health measurements.
+- LS-WVL does not expose confirmed firmware, CPU, fan, SMART, or system-error fields through the currently implemented read actions.
+- Entities for unsupported LS-WVL fields are therefore not created.
+- LS-WVL firmware 1.75 remains operator-supplied compatibility metadata.
+- LS-WVL session login, read-only monitoring, shutdown, and reboot have been hardware-verified on firmware 1.75.
+- Both LS-WVL power controls remain disabled by default and execute only after an explicit button press.
 
 ## Manual hardware test checklist
 
-Perform read-only checks first on each LS220D (1.86) and LS420D (1.88):
+Perform read-only checks first for each supported hardware/firmware combination.
 
-1. Back up the NAS configuration and confirm disks/RAID are healthy.
-2. Add the NAS by IP and by hostname in separate trials; verify duplicate
-   prevention by serial number where the serial is returned.
-3. Verify model, firmware, hostname, serial, and configuration URL in the
-   device registry without sharing identifiers in logs/screenshots.
-4. Compare each created sensor with the Buffalo UI; record sanitized response
-   keys and confirmed units for missing storage/disk/RAID data.
-5. Enter a wrong password, then reauthenticate successfully.
-6. Expire the web session and confirm the next read authenticates again.
-7. Disconnect the network, confirm entities become unavailable (not safely
-   off), reconnect, and confirm recovery without reloading.
-8. Configure two NAS devices and confirm their data and controls remain
-   independent.
-9. Restart is already hardware-tested for the listed LS220D 1.86 and LS420D
-   1.88 combinations, but repeat it only during an approved maintenance window.
-   Do not test it on another model or firmware until its method and parameters
-   are independently confirmed for that exact combination. LS-WVL firmware
-   1.75 is one of the hardware-verified combinations.
-10. During a separate approved maintenance window with storage idle and a
-    backup available, press **Shut down** once and confirm a clean shutdown.
-    Do not treat connection loss alone as proof.
-11. Run the disabled-by-default UPS automation with shortened timing and mock
-    or supervised UPS states; confirm cancellation when mains returns and
-    one request per outage.
+For LS220D firmware 1.86 and LS420D firmware 1.88:
+
+1. Back up the NAS configuration and confirm that all disks and RAID arrays are healthy.
+2. Add the NAS by IP address and by hostname in separate trials.
+3. Verify duplicate prevention by serial number where a serial number is returned.
+4. Verify model, firmware, hostname, serial number, and configuration URL in the Home Assistant Device Registry.
+5. Do not share identifiers through logs or screenshots.
+6. Compare each created sensor with the Buffalo Web UI.
+7. Record only sanitized response keys and confirmed units for missing storage, disk, or RAID information.
+8. Enter an incorrect password and verify that authentication fails safely.
+9. Reauthenticate successfully.
+10. Expire the Buffalo Web session and verify that the next read authenticates again.
+11. Disconnect the NAS network connection.
+12. Confirm that entities become unavailable rather than appearing safely powered off.
+13. Restore network connectivity and confirm recovery without reloading the integration.
+14. Configure two NAS devices and verify that their data and controls remain independent.
+
+Restart has already been hardware-tested for the listed LS220D 1.86 and LS420D 1.88 combinations.
+
+Repeat restart testing only during an approved maintenance window.
+
+Do not test restart on another model or firmware until its method and parameters have been independently confirmed for that exact combination.
+
+LS-WVL firmware 1.75 is also a hardware-verified combination.
+
+During a separate approved maintenance window, with storage idle and a current backup available:
+
+1. Press **Shut down** once.
+2. Confirm that the NAS performs a clean shutdown.
+3. Do not treat connectivity loss alone as proof that shutdown completed successfully.
+
+For UPS automation testing:
+
+1. Temporarily shorten the delay.
+2. Use simulated or closely supervised UPS states.
+3. Confirm that shutdown is cancelled if mains power returns.
+4. Confirm that only one shutdown request is sent per outage.
 
 ## Development
 
 ### Windows setup and read-only capture
 
-From PowerShell, use the repository setup script. It selects a compatible
-Python installation (preferring the Windows `py` launcher), creates or reuses
-`.venv`, and installs the capture dependencies plus the development tools that
-work on Windows. It deliberately does not install the complete Home Assistant
-runtime on Windows.
+From PowerShell, use the repository setup script.
+
+It selects a compatible Python installation, preferring the Windows `py` launcher, creates or reuses `.venv`, and installs the capture dependencies together with development tools that work on Windows.
+
+It deliberately does not install the complete Home Assistant runtime on Windows.
 
 ```powershell
 cd home-assistant-buffalo-linkstation
@@ -300,49 +484,62 @@ cd home-assistant-buffalo-linkstation
 .\.venv\Scripts\python.exe tools\capture_readonly.py --model LS220D
 ```
 
-For an LS420D, use:
+For an LS420D:
 
 ```powershell
 .\.venv\Scripts\python.exe tools\capture_readonly.py --model LS420D
 ```
 
-If the current PowerShell execution policy blocks local scripts, change it for
-that PowerShell process only, then run setup:
+If the local PowerShell execution policy prevents scripts from running, change it only for the current PowerShell process:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\setup.ps1
 ```
 
-This process-scoped setting ends when that PowerShell window closes and does
-not change the machine or user policy. The setup validation imports the API
-client and runs the capture tool's `--help`; neither operation contacts a NAS.
-During a real operator-approved capture, the tool reports each allowlisted
-method separately. If one fails, successful sanitized responses are retained
-in an explicitly incomplete capture and sanitized failure metadata is written
-to a separate ignored diagnostic file. See the hardware-validation guide for
-the filenames and interpretation.
-For captures where only the formerly SID-bearing `getNasFeature` request
-failed, `--retry-features` safely retries that one session-independent method
-and creates a new completed copy without modifying the original evidence.
+This process-scoped setting ends when the PowerShell window closes and does not modify the machine-wide or user-wide execution policy.
+
+The setup validation imports the API client and runs the capture tool with `--help`.
+
+Neither operation contacts a NAS.
+
+During an operator-approved hardware capture, the tool reports every allowlisted method separately.
+
+If one method fails:
+
+- successful sanitized responses are retained in an explicitly incomplete capture;
+- sanitized failure metadata is stored in a separate ignored diagnostic file.
+
+See the [hardware validation guide](docs/hardware-validation.md) for filenames and interpretation.
+
+For captures where only the formerly SID-bearing `getNasFeature` request failed, use:
+
+```text
+--retry-features
+```
+
+to safely retry only that session-independent method.
+
+This creates a new completed copy and does not modify the original evidence.
 
 ### Full test environment
 
-The complete Home Assistant test stack is installed on supported non-Windows
-environments from the same dependency file:
+The complete Home Assistant test environment can be installed on a supported non-Windows system using:
 
 ```bash
 python -m pip install -r requirements_test.txt
+
 ruff check .
 ruff format --check .
 python -m pytest -q -p no:cacheprovider
 ```
 
-See [docs/development.md](docs/development.md) for architecture conventions and
-hardware-fixture guidance. The Windows-safe capture procedure is documented in
-[docs/hardware-validation.md](docs/hardware-validation.md).
+See [docs/development.md](docs/development.md) for architecture conventions and hardware-fixture guidance.
+
+The Windows-safe capture procedure is documented in [docs/hardware-validation.md](docs/hardware-validation.md).
 
 ## License
 
-MIT. This repository does not include Buffalo vendor JavaScript or code from
-the older `hass-linkstation-addon` project.
+MIT.
+
+This repository does not include Buffalo vendor JavaScript or code from the older `hass-linkstation-addon` project.
