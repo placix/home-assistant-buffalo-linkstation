@@ -1,5 +1,9 @@
 # Buffalo LinkStation for Home Assistant
 
+[![Validate](https://github.com/placix/home-assistant-buffalo-linkstation/actions/workflows/validate.yml/badge.svg)](https://github.com/placix/home-assistant-buffalo-linkstation/actions/workflows/validate.yml)
+[![HACS](https://img.shields.io/badge/HACS-Integration-41BDF5.svg)](https://www.hacs.xyz/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Local monitoring and explicit power controls for compatible Buffalo LinkStation NAS devices through the modern JSON-RPC or legacy CGI interface.
 
 **No Buffalo cloud service is used.**
